@@ -1,0 +1,11 @@
+*.o
+exec/
+src_/
+obj/
+output/
+restart/
+*.ipynb
+Makefile
+__pycache__
+vis/
+.DS_Store

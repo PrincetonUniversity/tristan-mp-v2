@@ -1,0 +1,86 @@
+# Template for TRISTAN-MP Makefile
+# Kindly borrowed from ATHENA++
+SHELL=/bin/sh
+
+# Files for conditional compilation
+USER_FILE = @USER_FILE@
+
+# General compiler specifications
+FC := @COMPILER_COMMAND@
+FFLAGS := @COMPILER_FLAGS@
+PFLAGS := @PREPROCESSOR_FLAGS@
+
+# Preliminary definitions
+EXE_DIR := exec/
+USR_DIR := @USER_DIR@
+SRC_DIR := src/
+PREC_SRC_DIR := src_/
+EXE_FILE := @EXE_NAME@
+
+EXECUTABLE := $(EXE_DIR)$(EXE_FILE)
+
+SRC_FILES := $(SRC_DIR)global_namespace.F90 \
+             $(SRC_DIR)tools/auxiliary.F90 \
+             $(SRC_DIR)objects/domain.F90 \
+             $(SRC_DIR)objects/particles.F90 \
+             $(SRC_DIR)objects/fields.F90 \
+             $(SRC_DIR)tools/helpers.F90 \
+             $(SRC_DIR)logistics/finalize.F90 \
+             $(SRC_DIR)tools/error_handling.F90 \
+						 $(SRC_DIR)tools/binary_coupling.F90 \
+             $(SRC_DIR)logistics/particle_logistics.F90 \
+             $(SRC_DIR)load_balancing/static_lb.F90 \
+             $(SRC_DIR)load_balancing/adaptive_lb.F90 \
+             $(SRC_DIR)load_balancing/loadbalancing.F90 \
+						 $(SRC_DIR)physics/bw_pp.F90 \
+             $(SRC_DIR)physics/radiation.F90 \
+             $(SRC_DIR)physics/thermal_plasma.F90 \
+             $(SRC_DIR)physics/powerlaw_plasma.F90 \
+						 $(SRC_DIR)physics/qed_physics.F90 \
+             $(SRC_DIR)logistics/exchange_particles.F90 \
+             $(SRC_DIR)logistics/exchange_fields.F90 \
+             $(SRC_DIR)logistics/exchange_currents.F90 \
+             $(SRC_DIR)logistics/exchange_array.F90 \
+             $(SRC_DIR)io/write_output.F90 \
+             $(SRC_DIR)io/write_history.F90 \
+             $(SRC_DIR)io/read_input.F90 \
+             $(addprefix $(USR_DIR), $(USER_FILE).F90) \
+             $(SRC_DIR)algorithms/particle_mover.F90 \
+             $(SRC_DIR)algorithms/field_solver.F90 \
+             $(SRC_DIR)algorithms/current_deposit.F90 \
+             $(SRC_DIR)algorithms/filtering.F90 \
+             $(SRC_DIR)logistics/initialize.F90 \
+             $(SRC_DIR)tristanmainloop.F90 \
+             $(SRC_DIR)tristan.F90
+
+PREC_SRC_FILES := $(addprefix $(PREC_SRC_DIR), $(notdir $(SRC_FILES:.F90=_.F90)))
+
+OBJ_DIR := obj/
+OBJ_FILES := $(addprefix $(OBJ_DIR), $(notdir $(PREC_SRC_FILES:.F90=.o)))
+
+###########################
+.PHONY : all clean
+
+all: dirs precomp $(EXECUTABLE)
+
+dirs:
+	mkdir -p $(OBJ_DIR) $(EXE_DIR) $(PREC_SRC_DIR)
+
+precomp:
+	$(foreach fl, $(SRC_FILES), cpp -nostdinc -C -P -w $(PFLAGS) $(fl) > $(addprefix $(PREC_SRC_DIR), $(notdir $(fl:.F90=_.F90)));)
+
+$(EXECUTABLE):$(OBJ_FILES)
+	$(FC) $(FFLAGS) $(PFLAGS) -o $@ $(OBJ_FILES)
+
+$(OBJ_FILES):$(PREC_SRC_FILES)
+
+$(OBJ_DIR)%.o:$(PREC_SRC_DIR)%.F90
+	$(FC) $(FFLAGS) $(PFLAGS) @MODULE@ $(OBJ_DIR) -c $< -o $@
+
+clean:
+	rm -f $(OBJS)
+	rm -f $(OBJ_DIR)*.mod
+	rm -rf $(OBJ_DIR)
+	rm -rf $(PREC_SRC_DIR)
+	find . -name "*.o" -delete
+	rm -f $(EXE_DIR)*

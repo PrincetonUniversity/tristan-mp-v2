@@ -1,0 +1,124 @@
+#
+#  Tristan-mp input file
+#
+
+<node_configuration>
+
+  sizex         = 2              # number of cpus in x direction
+  sizey         = 56             # number of cpus in y direction
+  sizez         = 1              # number of cpus in z direction
+
+<time>
+
+  last           = 1000000       # last timestep
+
+<grid>
+
+  mx0           = 5000           # number of actual grid points in the x direction
+  my0           = 5600           # number of actual grid points in the y direction
+  mz0           = 1              # ... (ignored for 2D simulations)
+
+  boundary_x    = 0              # boundary in x: 1 = periodic, 0 = outflow
+  boundary_y    = 1              # boundary in y: 1 = periodic, 0 = outflow
+  boundary_z    = 1              # boundary in z: 1 = periodic, 0 = outflow
+
+  resize_tiles  = 1              # reallocate particle tiles if necessary
+  min_tile_nprt = 1000           # min # of allocated particles per tile
+
+  tileX         = 40             # tile dimension in x
+  tileY         = 40             # tile dimension in y
+  tileZ         = 1              # tile dimension in z
+
+<algorithm>
+
+  nfilter       = 8              # number of current filter passes
+
+<restart>
+
+<output>
+
+  start         = 0              # first output step
+  interval      = 500            # interval between output steps
+  stride        = 50             # particle stride
+  istep         = 4              # field downsampling
+  flds_at_prtl  = 1              # save fields at particle position
+
+  history       = 0              # 0 = .false.; 1 = .true.
+  hst_interval  = 1
+
+  spec_min      = 1e-4           # `g - 1` for massive and `e` for massless
+  spec_max      = 1e4            # `g - 1` for massive and `e` for massless
+  spec_num      = 300            # number of energy bins
+
+<adaptive_load_balancing>
+
+  in_x         = 0               # enable/disable dynamic load balancing in x
+  sx_min       = 10              # MIN number of cells per domain
+  interval_x   = 10              # interval between load balancing procedures
+  start_x      = 0               # first balancing step
+
+  in_y         = 0
+  sy_min       = 10
+  interval_y   = 1000
+  start_y      = 0
+
+  in_z         = 0
+  sz_min       = 10
+  interval_z   = 1000
+  start_z      = 0
+
+<static_load_balancing>
+
+  in_x         = 0
+  sx_min       = 10
+
+  in_y         = 0
+  sy_min       = 10
+
+  in_z         = 0
+  sz_min       = 10
+
+<plasma>
+
+  ppc0          = 4
+  sigma         = 100
+  c_omp         = 5
+
+<radiation>
+
+  emit_gamma_syn = 100          # `emit_gamma_syn` parameter (determines synchrotron peak energy)
+  gamma_syn     = 100           # `gamma_syn` parameter (determines cooling rate)
+  beta_rec      = 0.1           # fiducial number that goes into the definition of `gamma_syn` and `gamma_ic`
+  photon_sp     = 5             # emit photons to species #...
+
+<particles>
+
+  nspec         = 4
+
+  maxptl1       = 1e8           # max number of particles per core
+  m1            = 1
+  ch1           = -1
+  cool1         = 1
+
+  maxptl2       = 1e8           # max number of particles per core
+  m2            = 1
+  ch2           = 1
+  cool2         = 1
+
+  maxptl3       = 1e8           # max number of particles per core
+  m3            = 1
+  ch3           = -1
+  cool3         = 0
+
+  maxptl4       = 1e8           # max number of particles per core
+  m4            = 1
+  ch4           = 1
+  cool4         = 0
+
+<problem>
+
+  upstream_T      = 1e-4        # temperature in terms of [m_e c**2]
+  nCS_nUP         = 3.0
+  current_width   = 20
+  injector_sx     = 150
+  injector_betax  = 0.99999
