@@ -22,9 +22,13 @@ module m_domain
   end type mesh
 
   type :: region
-    real     :: x_min, x_max
-    real     :: y_min, y_max
-    #ifdef threeD
+    #if defined(oneD) || defined (twoD) || defined (threeD)
+      real     :: x_min, x_max
+    #endif
+    #if defined(twoD) || defined (threeD)
+      real     :: y_min, y_max
+    #endif
+    #if defined(threeD)
       real     :: z_min, z_max
     #endif
   end type region
@@ -38,14 +42,14 @@ module m_domain
   !   - boundary = 0: open
   integer                            :: boundary_x, boundary_y, boundary_z
   integer                            :: sendrecv_neighbors
-  
+
   ! loadbalancing variables
   type(mesh), allocatable :: new_meshblocks(:)
 
   ! global constants for SLB
   logical :: slb_x, slb_y, slb_z
   integer :: slb_sxmin, slb_symin, slb_szmin
-  
+
   ! global constants for ALB
   logical :: alb_x, alb_y, alb_z
   integer :: alb_sxmin, alb_symin, alb_szmin

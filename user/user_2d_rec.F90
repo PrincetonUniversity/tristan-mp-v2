@@ -22,17 +22,9 @@ module m_userfile
   !...............................................................!
 
   !--- PRIVATE functions -----------------------------------------!
-  private :: userInitParticles, userInitFields, userReadInput,&
-           & userSpatialDistribution
+  private :: userSpatialDistribution
   !...............................................................!
 contains
-  subroutine userInitialize()
-    implicit none
-    call userReadInput()
-    call userInitParticles()
-    call userInitFields()
-  end subroutine userInitialize
-
   !--- initialization -----------------------------------------!
   subroutine userReadInput()
     implicit none
@@ -43,6 +35,16 @@ contains
     call getInput('problem', 'injector_betax', injector_betax)
     cs_x = 0.5
   end subroutine userReadInput
+
+  function userSLBload(x_glob, y_glob, z_glob,&
+                     & dummy1, dummy2, dummy3)
+    real :: userSLBload
+    ! global coordinates
+    real, intent(in), optional  :: x_glob, y_glob, z_glob
+    ! global box dimensions
+    real, intent(in), optional  :: dummy1, dummy2, dummy3
+    return
+  end function
 
   function userSpatialDistribution(x_glob, y_glob, z_glob,&
                                  & dummy1, dummy2, dummy3)
@@ -70,7 +72,7 @@ contains
 
     sx_glob = REAL(global_mesh%sx)
     sy_glob = REAL(global_mesh%sy)
-    
+
     back_region%x_min = 0.0
     back_region%y_min = 0.0
     back_region%x_max = sx_glob * cs_x
@@ -116,7 +118,7 @@ contains
     sx_glob = REAL(global_mesh%sx)
     do i = -NGHOST, this_meshblock%ptr%sx - 1 + NGHOST
       i_glob = i + this_meshblock%ptr%x0
-      x_glob = REAL(i_glob)
+      x_glob = REAL(i_glob) + 0.5
       !do j = -NGHOST, this_meshblock%ptr%sy - 1 + NGHOST
       by(i,:,:) = tanh((x_glob - cs_x * sx_glob) / current_width)
       !end do
@@ -142,7 +144,7 @@ contains
     !   end do
     ! end do
   end subroutine userDriveParticles
-  
+
   subroutine userExternalFields(xp, yp, zp,&
                               & ex_ext, ey_ext, ez_ext,&
                               & bx_ext, by_ext, bz_ext)
@@ -165,7 +167,7 @@ contains
     type(region)                    :: back_region
     integer, optional, intent(in)             :: step
     procedure (spatialDistribution), pointer  :: spat_distr_ptr => null()
-    
+
     ! reset the injector position every once in a while
     if ((modulo(step, injector_reset_interval) .eq. 0) .and. (step .gt. 0)) then
       injector_x1 = injector_x1 +&
@@ -173,7 +175,7 @@ contains
       injector_x2 = injector_x2 -&
                         & REAL(injector_reset_interval) * CC * injector_betax
     end if
-    
+
     ! move the injectors
     old_x1 = injector_x1; old_x2 = injector_x2
     injector_x1 = injector_x1 - injector_betax * CC
@@ -186,14 +188,14 @@ contains
        & (injector_i1_glob .lt. this_meshblock%ptr%x0 + this_meshblock%ptr%sx)) .or.&
       & ((injector_i2_glob .ge. this_meshblock%ptr%x0) .and.&
        & (injector_i2_glob .lt. this_meshblock%ptr%x0 + this_meshblock%ptr%sx))) then
-      
+
       if (modulo(step, injector_reset_interval) .eq. 0) then
         ! remove particles left and right from the injectors every once in a while
         do s = 1, nspec
           do ti = 1, species(s)%tile_nx
             do tj = 1, species(s)%tile_ny
               do tk = 1, species(s)%tile_nz
-                do p = 1, species(s)%prtl_tile(ti, tj, tk)%npart_sp 
+                do p = 1, species(s)%prtl_tile(ti, tj, tk)%npart_sp
                   x_glob = REAL(species(s)%prtl_tile(ti, tj, tk)%xi(p) + this_meshblock%ptr%x0)&
                          & + species(s)%prtl_tile(ti, tj, tk)%dx(p)
                   if ((x_glob .le. old_x1) .or. (x_glob .gt. old_x2)) then
@@ -209,7 +211,7 @@ contains
 
     ! inject background particles at the injectors' positions
     nUP = 0.5 * ppc0
-    
+
     ! left injector
     back_region%x_min = injector_x1
     back_region%x_max = old_x1
@@ -227,29 +229,54 @@ contains
     call fillRegionWithThermalPlasma(back_region, (/3, 4/), 2, nUP, upstream_T)
   end subroutine userParticleBoundaryConditions
 
-  subroutine userFieldBoundaryConditions(step)
+  subroutine userFieldBoundaryConditions(step, updateE, updateB)
     implicit none
     real                          :: sx_glob, x_glob
     integer                       :: i, j, k
     integer                       :: i_glob, injector_i1_glob, injector_i2_glob
     integer, optional, intent(in) :: step
-    
+    logical, optional, intent(in) :: updateE, updateB
+    logical                       :: updateE_, updateB_
+
+    if (present(updateE)) then
+      updateE_ = updateE
+    else
+      updateE_ = .true.
+    end if
+
+    if (present(updateB)) then
+      updateB_ = updateB
+    else
+      updateB_ = .true.
+    end if
+
     injector_i1_glob = INT(injector_x1)
     injector_i2_glob = INT(injector_x2)
 
     if ((injector_i1_glob .le. this_meshblock%ptr%x0 + this_meshblock%ptr%sx) .or.&
       & (injector_i2_glob .ge. this_meshblock%ptr%x0)) then
       ! reset fields left and right from the injectors
-      sx_glob = REAL(global_mesh%sx)
-      do i = -NGHOST, this_meshblock%ptr%sx - 1 + NGHOST
-        i_glob = i + this_meshblock%ptr%x0
-        x_glob = REAL(i_glob)
-        if ((i_glob .lt. injector_i1_glob) .or. (i_glob .gt. injector_i2_glob)) then
-          ex(i, :, :) = 0.0; ey(i, :, :) = 0.0; ez(i, :, :) = 0.0
-          bx(i, :, :) = 0.0; bz(i, :, :) = 0.0
-          by(i, :, :) = tanh((x_glob - cs_x * sx_glob) / current_width)
-        end if
-      end do
+      if (updateB_) then
+        sx_glob = REAL(global_mesh%sx)
+        do i = -NGHOST, this_meshblock%ptr%sx - 1 + NGHOST
+          i_glob = i + this_meshblock%ptr%x0
+          x_glob = REAL(i_glob)
+          if ((i_glob .lt. injector_i1_glob) .or. (i_glob .gt. injector_i2_glob)) then
+            bx(i, :, :) = 0.0; bz(i, :, :) = 0.0
+            by(i, :, :) = tanh((x_glob - cs_x * sx_glob) / current_width)
+          end if
+        end do
+      end if
+      if (updateE_) then
+        sx_glob = REAL(global_mesh%sx)
+        do i = -NGHOST, this_meshblock%ptr%sx - 1 + NGHOST
+          i_glob = i + this_meshblock%ptr%x0
+          x_glob = REAL(i_glob)
+          if ((i_glob .lt. injector_i1_glob) .or. (i_glob .gt. injector_i2_glob)) then
+            ex(i, :, :) = 0.0; ey(i, :, :) = 0.0; ez(i, :, :) = 0.0
+          end if
+        end do
+      end if
     end if
   end subroutine userFieldBoundaryConditions
   !............................................................!

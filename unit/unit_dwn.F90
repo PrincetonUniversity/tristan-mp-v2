@@ -11,25 +11,16 @@ module m_userfile
   use m_particlelogistics
   implicit none
 
-  procedure (spatialDistribution), pointer :: user_slb_load_ptr => null()
+  
 
   !--- PRIVATE variables -----------------------------------------!
 
   !...............................................................!
 
   !--- PRIVATE functions -----------------------------------------!
-  private :: userInitParticles, userInitFields, userReadInput,&
-           & userSpatialDistribution
+  private :: userSpatialDistribution
   !...............................................................!
 contains
-  subroutine userInitialize()
-    implicit none
-    call userReadInput()
-    call userInitParticles()
-    call userInitFields()
-    user_slb_load_ptr => userSLBload
-  end subroutine userInitialize
-
   !--- initialization -----------------------------------------!
   subroutine userReadInput()
     implicit none
@@ -56,9 +47,44 @@ contains
 
   subroutine userInitParticles()
     implicit none
+    real      :: th, rnd
+    real      :: x_, y_, u_, v_, w_
+    integer   :: i
     procedure (spatialDistribution), pointer :: spat_distr_ptr => null()
     spat_distr_ptr => userSpatialDistribution
-    call injectParticleGlobally(1, 50.0, 50.0, 0.5, 7.8, -5.3, -2.2)
+
+    do i = 1, 100000
+      th = 2.0 * M_PI * random(dseed)
+      ! rnd = 2.0 * random(dseed) - 1.0
+      ! u_ = sqrt(1.0 - rnd**2) * cos(th)
+      ! v_ = sqrt(1.0 - rnd**2) * sin(th)
+      ! w_ = rnd
+
+      u_ = cos(th)
+      v_ = sin(th)
+      w_ = 0.0
+
+      x_ = 61.6
+      y_ = 57.2
+      call injectParticleGlobally(1, x_, y_, 0.5, u_, v_, w_)
+    end do
+
+    do i = 1, 100000
+      th = 2.0 * M_PI * random(dseed)
+      ! rnd = 2.0 * random(dseed) - 1.0
+      ! u_ = sqrt(1.0 - rnd**2) * cos(th)
+      ! v_ = sqrt(1.0 - rnd**2) * sin(th)
+      ! w_ = rnd
+
+      u_ = cos(th)
+      v_ = sin(th)
+      w_ = 0.0
+
+      x_ = 90.6
+      y_ = 101.2
+      call injectParticleGlobally(2, x_, y_, 0.5, u_, v_, w_)
+    end do
+
   end subroutine userInitParticles
 
   subroutine userInitFields()
@@ -120,9 +146,23 @@ contains
     integer, optional, intent(in) :: step
   end subroutine userParticleBoundaryConditions
 
-  subroutine userFieldBoundaryConditions(step)
+  subroutine userFieldBoundaryConditions(step, updateE, updateB)
     implicit none
     integer, optional, intent(in) :: step
+    logical, optional, intent(in) :: updateE, updateB
+    logical                       :: updateE_, updateB_
+
+    if (present(updateE)) then
+      updateE_ = updateE
+    else
+      updateE_ = .true.
+    end if
+
+    if (present(updateB)) then
+      updateB_ = updateB
+    else
+      updateB_ = .true.
+    end if
   end subroutine userFieldBoundaryConditions
   !............................................................!
 end module m_userfile

@@ -5,14 +5,21 @@ module m_particles
   implicit none
 
   type :: particle_tile
+    ! DEP_PRT [particle-dependent]
     integer                                     :: npart_sp, maxptl_sp
+    ! species index for a given tile
+    integer                                     :: spec
     ! tile boundaries in local coordinates
     integer                                     :: x1, x2, y1, y2, z1, z2
     integer(kind=2), allocatable, dimension(:)  :: xi, yi, zi
     real, allocatable, dimension(:)             :: dx, dy, dz
     real, allocatable, dimension(:)             :: u, v, w
+    real, allocatable, dimension(:)             :: weight
     integer, allocatable, dimension(:)          :: ind, proc
-    !dir$ attributes align: 64 :: xi, yi, zi, dx, dy, dz, u, v, w, ind, proc
+    !dir$ attributes align: 64 :: xi, yi, zi, dx, dy, dz, u, v, w, weight, ind, proc
+    #ifdef PRTLPAYLOADS
+      real, allocatable, dimension(:)             :: payload1, payload2, payload3
+    #endif
     ! > `proc < 0` means the particle will be deleted once the `clearGhostParticles()` is called
   end type particle_tile
 
@@ -24,28 +31,36 @@ module m_particles
     ! numbers of the tiles in each direction
     integer     :: tile_nx, tile_ny, tile_nz
     type (particle_tile), allocatable, dimension(:,:,:) :: prtl_tile
+    ! `true/false` - whether this species deposit currents or not
+    logical     :: deposit_sp
+    ! `true/false` - whether this species moves or not
+    logical     :: move_sp
+    ! `true/false` - whether this species is saved into particle output
+    logical     :: output_sp
 
-    ! extra physics properties
-    #ifdef RADIATION
-      logical     :: cool_sp
-    #endif
-
-    #ifdef BWPAIRPRODUCTION
-      integer     :: bw_sp
+    #ifdef DOWNSAMPLING
+      ! `true/false` - either downsample species or not
+      logical     :: dwn_sp
     #endif
   end type particle_species
 
   ! particle types for exchange between processors />
   type :: prtl_enroute
+    ! DEP_PRT [particle-dependent]
     integer(kind=2)   :: xi, yi, zi
     real              :: dx, dy, dz
     real              :: u, v, w
+    real              :: weight
+    #ifdef PRTLPAYLOADS
+      real              :: payload1, payload2, payload3
+    #endif
     integer           :: ind, proc
   end type prtl_enroute
 
   type :: enroute_array
-    type(prtl_enroute), allocatable    :: send_enroute(:)
-    integer                            :: cnt_send
+    type(prtl_enroute), allocatable     :: send_enroute(:)
+    integer                             :: cnt_send
+    integer                             :: max_send
   end type enroute_array
 
   type :: enroute_handler
@@ -53,8 +68,10 @@ module m_particles
   end type enroute_handler
   ! </ particle types for exchange between processors
 
-  type(particle_species), target, allocatable :: species(:)
-  integer                                      :: nspec
+  ! main container for particles
+  type(particle_species), target, allocatable   :: species(:)
+  ! number of species
+  integer                                       :: nspec
 
   type(prtl_enroute), allocatable, dimension(:)    :: recv_enroute
   type(enroute_handler)                            :: enroute_bot

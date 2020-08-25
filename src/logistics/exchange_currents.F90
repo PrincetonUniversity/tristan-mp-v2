@@ -40,46 +40,57 @@ contains
     allocate(mpi_sendflags(sendrecv_neighbors))
     allocate(mpi_recvflags(sendrecv_neighbors))
 
+    if (.not. fill_ghosts) then
+      jx_buff(:,:,:) = 0.0
+      jy_buff(:,:,:) = 0.0
+      jz_buff(:,:,:) = 0.0
+    end if
+
     ! exchange the ghost cells + the real cells
     cntr = 0
     do ind1 = -1, 1
       do ind2 = -1, 1
         do ind3 = -1, 1
           if ((ind1 .eq. 0) .and. (ind2 .eq. 0) .and. (ind3 .eq. 0)) cycle
-          #ifndef threeD
+          #ifdef oneD
+            if ((ind2 .ne. 0) .or. (ind3 .ne. 0)) cycle
+          #elif twoD
             if (ind3 .ne. 0) cycle
           #endif
           if (.not. associated(this_meshblock%ptr%neighbor(ind1,ind2,ind3)%ptr)) cycle
           cntr = cntr + 1
 
           mpi_sendto = this_meshblock%ptr%neighbor(ind1,ind2,ind3)%ptr%rnk
-          mpi_sendtag = 100 * (mpi_rank + 1) + (ind3 + 2) + 3 * (ind2 + 1) + 9 * (ind1 + 1)
+          mpi_sendtag = (ind3 + 2) + 3 * (ind2 + 1) + 9 * (ind1 + 1)
 
           ! highlight the region to send and save to `send_fld`
           if (.not. fill_ghosts) then
             !   sending ghost zones + normal zones
             if (ind1 .eq. 0) then
-              imin = 0; imax = this_meshblock%ptr%sx - 1
+              imin = -NGHOST; imax = this_meshblock%ptr%sx + NGHOST - 1
             else if (ind1 .eq. -1) then
               imin = -NGHOST; imax = NGHOST - 1
             else if (ind1 .eq. 1) then
               imin = this_meshblock%ptr%sx - NGHOST; imax = this_meshblock%ptr%sx + NGHOST - 1
             end if
             if (ind2 .eq. 0) then
-              jmin = 0; jmax = this_meshblock%ptr%sy - 1
+              jmin = -NGHOST; jmax = this_meshblock%ptr%sy + NGHOST - 1
             else if (ind2 .eq. -1) then
               jmin = -NGHOST; jmax = NGHOST - 1
             else if (ind2 .eq. 1) then
               jmin = this_meshblock%ptr%sy - NGHOST; jmax = this_meshblock%ptr%sy + NGHOST - 1
             end if
             if (ind3 .eq. 0) then
-              kmin = 0; kmax = this_meshblock%ptr%sz - 1
+              kmin = -NGHOST; kmax = this_meshblock%ptr%sz + NGHOST - 1
             else if (ind3 .eq. -1) then
               kmin = -NGHOST; kmax = NGHOST - 1
             else if (ind3 .eq. 1) then
               kmin = this_meshblock%ptr%sz - NGHOST; kmax = this_meshblock%ptr%sz + NGHOST - 1
             end if
-            #ifndef threeD
+            #ifdef oneD
+              jmin = 0; jmax = 0
+              kmin = 0; kmax = 0
+            #elif twoD
               kmin = 0; kmax = 0
             #endif
           else
@@ -105,7 +116,10 @@ contains
             else if (ind3 .eq. 1) then
               kmin = this_meshblock%ptr%sz - NGHOST; kmax = this_meshblock%ptr%sz - 1
             end if
-            #ifndef threeD
+            #ifdef oneD
+              jmin = 0; jmax = 0
+              kmin = 0; kmax = 0
+            #elif twoD
               kmin = 0; kmax = 0
             #endif
           end if
@@ -144,7 +158,9 @@ contains
         do ind2 = -1, 1
           do ind3 = -1, 1
             if ((ind1 .eq. 0) .and. (ind2 .eq. 0) .and. (ind3 .eq. 0)) cycle
-            #ifndef threeD
+            #ifdef oneD
+              if ((ind2 .ne. 0) .or. (ind3 .ne. 0)) cycle
+            #elif twoD
               if (ind3 .ne. 0) cycle
             #endif
             if (.not. associated(this_meshblock%ptr%neighbor(ind1,ind2,ind3)%ptr)) cycle
@@ -157,7 +173,7 @@ contains
             end if
 
             mpi_recvfrom = this_meshblock%ptr%neighbor(ind1,ind2,ind3)%ptr%rnk
-            mpi_recvtag = 100 * (mpi_recvfrom + 1) + (-ind3 + 2) + 3 * (-ind2 + 1) + 9 * (-ind1 + 1)
+            mpi_recvtag = (-ind3 + 2) + 3 * (-ind2 + 1) + 9 * (-ind1 + 1)
 
             if (.not. mpi_recvflags(cntr)) then
               quit_loop = .false.
@@ -173,27 +189,30 @@ contains
                 if (.not. fill_ghosts) then
                   !   write to ghosts + normal zones
                   if (ind1 .eq. 0) then
-                    imin = 0; imax = this_meshblock%ptr%sx - 1
+                    imin = -NGHOST; imax = this_meshblock%ptr%sx + NGHOST - 1
                   else if (ind1 .eq. -1) then
                     imin = -NGHOST; imax = NGHOST - 1
                   else if (ind1 .eq. 1) then
                     imin = this_meshblock%ptr%sx - NGHOST; imax = this_meshblock%ptr%sx + NGHOST - 1
                   end if
                   if (ind2 .eq. 0) then
-                    jmin = 0; jmax = this_meshblock%ptr%sy - 1
+                    jmin = -NGHOST; jmax = this_meshblock%ptr%sy + NGHOST - 1
                   else if (ind2 .eq. -1) then
                     jmin = -NGHOST; jmax = NGHOST - 1
                   else if (ind2 .eq. 1) then
                     jmin = this_meshblock%ptr%sy - NGHOST; jmax = this_meshblock%ptr%sy + NGHOST - 1
                   end if
                   if (ind3 .eq. 0) then
-                    kmin = 0; kmax = this_meshblock%ptr%sz - 1
+                    kmin = -NGHOST; kmax = this_meshblock%ptr%sz + NGHOST - 1
                   else if (ind3 .eq. -1) then
                     kmin = -NGHOST; kmax = NGHOST - 1
                   else if (ind3 .eq. 1) then
                     kmin = this_meshblock%ptr%sz - NGHOST; kmax = this_meshblock%ptr%sz + NGHOST - 1
                   end if
-                  #ifndef threeD
+                  #ifdef oneD
+                    jmin = 0; jmax = 0
+                    kmin = 0; kmax = 0
+                  #elif twoD
                     kmin = 0; kmax = 0
                   #endif
                 else
@@ -219,7 +238,10 @@ contains
                   else if (ind3 .eq. 1) then
                     kmin = this_meshblock%ptr%sz; kmax = this_meshblock%ptr%sz + NGHOST - 1
                   end if
-                  #ifndef threeD
+                  #ifdef oneD
+                    jmin = 0; jmax = 0
+                    kmin = 0; kmax = 0
+                  #elif twoD
                     kmin = 0; kmax = 0
                   #endif
                 end if
@@ -231,9 +253,9 @@ contains
                     do k = kmin, kmax
                       if (.not. fill_ghosts) then
                         ! add to existing values
-                        jx(i, j, k) = jx(i, j, k) + recv_fld(send_cnt + 0)
-                        jy(i, j, k) = jy(i, j, k) + recv_fld(send_cnt + 1)
-                        jz(i, j, k) = jz(i, j, k) + recv_fld(send_cnt + 2)
+                        jx_buff(i, j, k) = jx_buff(i, j, k) + recv_fld(send_cnt + 0)
+                        jy_buff(i, j, k) = jy_buff(i, j, k) + recv_fld(send_cnt + 1)
+                        jz_buff(i, j, k) = jz_buff(i, j, k) + recv_fld(send_cnt + 2)
                       else
                         ! overwrite the existing values
                         jx(i, j, k) = recv_fld(send_cnt + 0)
@@ -250,6 +272,13 @@ contains
         end do ! ind2
       end do ! ind1
     end do ! global loop
+
+    if (.not. fill_ghosts) then
+      jx(:,:,:) = jx(:,:,:) + jx_buff(:,:,:)
+      jy(:,:,:) = jy(:,:,:) + jy_buff(:,:,:)
+      jz(:,:,:) = jz(:,:,:) + jz_buff(:,:,:)
+    end if
+
     call printDiag((mpi_rank .eq. 0), "exchangeCurrents()", .true.)
   end subroutine exchangeCurrents
 end module m_exchangecurrents

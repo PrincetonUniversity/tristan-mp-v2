@@ -18,17 +18,9 @@ module m_userfile
   !...............................................................!
 
   !--- PRIVATE functions -----------------------------------------!
-  private :: userInitParticles, userInitFields, userReadInput,&
-           & userSpatialDistribution
+  private :: userSpatialDistribution
   !...............................................................!
 contains
-  subroutine userInitialize()
-    implicit none
-    call userReadInput()
-    call userInitParticles()
-    call userInitFields()
-  end subroutine userInitialize
-
   !--- initialization -----------------------------------------!
   subroutine userReadInput()
     implicit none
@@ -137,8 +129,23 @@ contains
     implicit none
   end subroutine userParticleBoundaryConditions
 
-  subroutine userFieldBoundaryConditions()
+  subroutine userFieldBoundaryConditions(step, updateE, updateB)
     implicit none
+    integer, optional, intent(in) :: step
+    logical, optional, intent(in) :: updateE, updateB
+    logical                       :: updateE_, updateB_
+
+    if (present(updateE)) then
+      updateE_ = updateE
+    else
+      updateE_ = .true.
+    end if
+
+    if (present(updateB)) then
+      updateB_ = updateB
+    else
+      updateB_ = .true.
+    end if
   end subroutine userFieldBoundaryConditions
   !............................................................!
 end module m_userfile

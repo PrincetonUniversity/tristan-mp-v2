@@ -2,8 +2,10 @@
 
 module m_readinput
   use m_globalnamespace
+  use m_aux
   use m_errors
   use m_writeoutput
+  use m_writerestart
   implicit none
 
   interface strToNum
@@ -24,7 +26,8 @@ module m_readinput
   !--- PRIVATE functions -----------------------------------------!
   private :: strToInt4, strToInt8, strToReal4, strToReal8,&
            & getInt4Input, getInt8Input, getReal4Input,&
-           & getReal8Input, getLogicalInput, parseInput
+           & getReal8Input, getLogicalInput, parseInput,&
+           & simplifyBlockname
   !...............................................................!
 contains
   ! read input/output filename/directory
@@ -44,6 +47,13 @@ contains
         case ('-r', '--restart')
           call get_command_argument(i + 1, arg1)
           restart_dir_name = trim(arg1)
+        case ('-s', '--slice')
+          call get_command_argument(i + 1, arg1)
+          slice_dir_name = trim(arg1)
+        case ('-R', '--RST')
+          call get_command_argument(i + 1, arg1)
+          restart_from = trim(arg1)
+          rst_simulation = .true.
       end select
     end do
   end subroutine readCommandlineArgs
@@ -70,6 +80,8 @@ contains
         find_varname: do while (.true.)
           read(UNIT_input, *, IOSTAT = iostatus) istream
           if (iostatus .lt. 0) exit find_blockname
+          ! exit if you reach the beginning of a new block:
+          if (istream(1:1) .eq. '<') exit find_blockname
           if (trim(istream) .eq. trim(varname)) then
             ! found the right variable
             backspace(UNIT_input)
@@ -92,6 +104,50 @@ contains
       found = .true.
       parseInput = value_str
     end if
+  end function parseInput
+
+  ! changing blockname to 3 characters
+  function simplifyBlockname(blockname) result(bname)
+    implicit none
+    character(len=*), intent(in)  :: blockname
+    character(len=3)              :: bname
+    if (trim(blockname) .eq. 'node_configuration') then
+      bname = 'cpu'
+    else if (trim(blockname) .eq. 'grid') then
+      bname = 'grd'
+    else if (trim(blockname) .eq. 'restart') then
+      bname = 'rst'
+    else if (trim(blockname) .eq. 'adaptive_load_balancing') then
+      bname = 'alb'
+    else if (trim(blockname) .eq. 'static_load_balancing') then
+      bname = 'slb'
+    else if (trim(blockname) .eq. 'plasma') then
+      bname = 'pls'
+    else if (trim(blockname) .eq. 'particles') then
+      bname = 'prt'
+    else if (trim(blockname) .eq. 'downsampling') then
+      bname = 'dwn'
+    else if (trim(blockname) .eq. 'problem') then
+      bname = 'prb'
+    else
+      bname = blockname(1:3)
+    end if
+  end function simplifyBlockname
+
+  function isUniqueParam(blockname, varname) result(unique)
+    implicit none
+    character(len=*), intent(in)  :: blockname, varname
+    logical                       :: unique
+    integer                       :: n
+    do n = 1, sim_params%count
+      if ((trim(simplifyBlockname(blockname)) .eq. trim(sim_params%param_group(n)%str)) .and.&
+        & (trim(varname) .eq. trim(sim_params%param_name(n)%str))) then
+        unique = .false.
+        return
+      end if
+    end do
+    unique = .true.
+    return
   end function
 
   subroutine getInt4Input(blockname, varname, val, def_val)
@@ -125,6 +181,13 @@ contains
                         & //"-- no default value provided")
         end if
       end if
+    end if
+    if (isUniqueParam(blockname, varname)) then
+      sim_params%count = sim_params%count + 1
+      sim_params%param_type(sim_params%count) = 1
+      sim_params%param_group(sim_params%count)%str = simplifyBlockname(blockname)
+      sim_params%param_name(sim_params%count)%str = varname
+      sim_params%param_value(sim_params%count)%value_int = val
     end if
   end subroutine getInt4Input
   subroutine strToInt4(val_str, val, stat)
@@ -169,6 +232,13 @@ contains
         end if
       end if
     end if
+    if (isUniqueParam(blockname, varname)) then
+      sim_params%count = sim_params%count + 1
+      sim_params%param_type(sim_params%count) = 1
+      sim_params%param_group(sim_params%count)%str = simplifyBlockname(blockname)
+      sim_params%param_name(sim_params%count)%str = varname
+      sim_params%param_value(sim_params%count)%value_int = val
+    end if
   end subroutine getInt8Input
   subroutine strToInt8(val_str, val, stat)
     implicit none
@@ -211,6 +281,13 @@ contains
                         & //"-- no default value provided")
         end if
       end if
+    end if
+    if (isUniqueParam(blockname, varname)) then
+      sim_params%count = sim_params%count + 1
+      sim_params%param_type(sim_params%count) = 2
+      sim_params%param_group(sim_params%count)%str = simplifyBlockname(blockname)
+      sim_params%param_name(sim_params%count)%str = varname
+      sim_params%param_value(sim_params%count)%value_real = val
     end if
   end subroutine getReal4Input
   subroutine strToReal4(val_str, val, stat)
@@ -255,7 +332,21 @@ contains
         end if
       end if
     end if
+    if (isUniqueParam(blockname, varname)) then
+      sim_params%count = sim_params%count + 1
+      sim_params%param_type(sim_params%count) = 2
+      sim_params%param_group(sim_params%count)%str = simplifyBlockname(blockname)
+      sim_params%param_name(sim_params%count)%str = varname
+      sim_params%param_value(sim_params%count)%value_real = val
+    end if
   end subroutine getReal8Input
+  subroutine strToReal8(val_str, val, stat)
+    implicit none
+    character(len=*), intent(in) :: val_str
+    real(kind=8), intent(out)    :: val
+    integer, intent(out)         :: stat
+    read(val_str, *, iostat = stat) val
+  end subroutine strToReal8
 
   subroutine getLogicalInput(blockname, varname, val, def_val)
     implicit none
@@ -298,13 +389,12 @@ contains
         end if
       end if
     end if
+    if (isUniqueParam(blockname, varname)) then
+      sim_params%count = sim_params%count + 1
+      sim_params%param_type(sim_params%count) = 3
+      sim_params%param_group(sim_params%count)%str = simplifyBlockname(blockname)
+      sim_params%param_name(sim_params%count)%str = varname
+      sim_params%param_value(sim_params%count)%value_bool = val
+    end if
   end subroutine getLogicalInput
-
-  subroutine strToReal8(val_str, val, stat)
-    implicit none
-    character(len=*), intent(in) :: val_str
-    real(kind=8), intent(out)    :: val
-    integer, intent(out)         :: stat
-    read(val_str, *, iostat = stat) val
-  end subroutine strToReal8
 end module m_readinput

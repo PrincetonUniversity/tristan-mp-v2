@@ -11,31 +11,22 @@ module m_writeoutput
   use m_particles
   use m_fields
   use m_helpers
+  use m_writehelpers, only: prepareFieldForOutput, selectFieldForOutput
   use m_exchangearray
-
-  ! extra physics
-  #ifdef RADIATION
-    use m_radiation
-  #endif
-
-  #ifdef BWPAIRPRODUCTION
-    use m_bwpairproduction
-  #endif
+  use m_writehelpers, only: prepareFieldForOutput, selectFieldForOutput
 
   implicit none
 
   integer                 :: output_start, output_interval, output_stride, output_istep
   integer                 :: n_fld_vars, n_prtl_vars, n_dom_vars
   character(len=STR_MAX)  :: prtl_vars(100), prtl_var_types(100), fld_vars(100), dom_vars(100)
-  integer, allocatable, dimension(:,:) :: glob_spectra
-  logical                 :: flds_at_prtl
-
+  real, allocatable, dimension(:,:) :: glob_spectra
+  logical                 :: output_enable, flds_at_prtl, write_xdmf
+  logical                 :: params_enable = .true., prtl_enable = .true.
+  logical                 :: flds_enable = .true., spec_enable = .true., domain_enable = .true.
 
   !--- PRIVATE functions -----------------------------------------!
-  #ifndef HDF5
-    private :: writeParticles_Binary, writeFields_Binary,&
-             & writeSpectra_Binary
-  #else
+  #ifdef HDF5
     private :: writeParticles_hdf5, writeFields_hdf5,&
              & writeSpectra_hdf5, writeDomain_hdf5,&
              & writeXDMF_hdf5
@@ -57,16 +48,43 @@ contains
     call initializeOutput()
 
     step = output_index
+
     #ifdef HDF5
-      call writeParticles_hdf5(step, time)
-        call printDiag((mpi_rank .eq. 0), "...writeParticles_hdf5()", .true.)
-      call writeFields_hdf5(step, time)
-        call printDiag((mpi_rank .eq. 0), "...writeFields_hdf5()", .true.)
-      call writeSpectra_hdf5(step, time)
-        call printDiag((mpi_rank .eq. 0), "...writeSpectra_hdf5()", .true.)
-      call writeDomain_hdf5(step, time)
-        call printDiag((mpi_rank .eq. 0), "...writeDomain_hdf5()", .true.)
+
+      if (params_enable) then
+        call writeParams_hdf5(step, time)
+          call printDiag((mpi_rank .eq. 0), "...writeParams_hdf5()", .true.)
+      end if
+
+      if (prtl_enable) then
+        call writeParticles_hdf5(step, time)
+          call printDiag((mpi_rank .eq. 0), "...writeParticles_hdf5()", .true.)
+      end if
+
+      if (flds_enable) then
+        call writeFields_hdf5(step, time)
+          call printDiag((mpi_rank .eq. 0), "...writeFields_hdf5()", .true.)
+      end if
+
+      if (spec_enable) then
+        call writeSpectra_hdf5(step, time)
+          call printDiag((mpi_rank .eq. 0), "...writeSpectra_hdf5()", .true.)
+      end if
+
+      if (domain_enable) then
+        call writeDomain_hdf5(step, time)
+          call printDiag((mpi_rank .eq. 0), "...writeDomain_hdf5()", .true.)
+      end if
+
+    #else
+
+      if (params_enable) then
+        call writeParams(step, time)
+          call printDiag((mpi_rank .eq. 0), "...writeParams()", .true.)
+      end if
+
     #endif
+
     call printDiag((mpi_rank .eq. 0), "output()", .true.)
     output_index = output_index + 1
   end subroutine writeOutput
@@ -76,37 +94,37 @@ contains
     implicit none
     real                      :: energy, u_, v_, w_
     integer                   :: s, i, ti, tj, tk, p, spec_index
-    integer                   :: ierr
-    integer, allocatable, dimension(:,:)  :: spectra
-    integer, allocatable, dimension(:)    :: send_spec_int, recv_spec_int
-    real, allocatable, dimension(:)       :: send_spec_real, recv_spec_real
+    integer                   :: ierr, ndown, pid
+    real, allocatable, dimension(:,:)     :: spectra
+    real, allocatable, dimension(:)       :: send_spec, recv_spec
     ! initialize particle variables
-    if (.not. flds_at_prtl) then
-      n_prtl_vars = 8
-      prtl_vars(1:n_prtl_vars) = (/'x    ', 'y    ', 'z    ',&
-                                 & 'u    ', 'v    ', 'w    ',&
-                                 & 'ind  ', 'proc '/)
-      prtl_var_types(1:n_prtl_vars) = (/'real ', 'real ', 'real ',&
-                                      & 'real ', 'real ', 'real ',&
-                                      & 'int  ', 'int  '/)
-    else
-      n_prtl_vars = 14
-      prtl_vars(1:n_prtl_vars) = (/'x    ', 'y    ', 'z    ',&
-                                 & 'u    ', 'v    ', 'w    ',&
-                                 & 'ind  ', 'proc ',&
-                                 & 'ex   ', 'ey   ', 'ez   ',&
-                                 & 'bx   ', 'by   ', 'bz   '/)
-      prtl_var_types(1:n_prtl_vars) = (/'real ', 'real ', 'real ',&
-                                      & 'real ', 'real ', 'real ',&
-                                      & 'int  ', 'int  ',&
-                                      & 'real ', 'real ', 'real ',&
-                                      & 'real ', 'real ', 'real '/)
+    n_prtl_vars = 9
+    prtl_vars(1:n_prtl_vars) = (/'x    ', 'y    ', 'z    ',&
+                               & 'u    ', 'v    ', 'w    ',&
+                               & 'wei  ', 'ind  ', 'proc '/)
+    prtl_var_types(1:n_prtl_vars) = (/'real ', 'real ', 'real ',&
+                                    & 'real ', 'real ', 'real ',&
+                                    & 'real ', 'int  ', 'int  '/)
+    if (flds_at_prtl) then
+      n_prtl_vars = n_prtl_vars + 6
+      prtl_vars(10:n_prtl_vars) = (/'ex   ', 'ey   ', 'ez   ',&
+                                  & 'bx   ', 'by   ', 'bz   '/)
+      prtl_var_types(10:n_prtl_vars) = (/'real ', 'real ', 'real ',&
+                                       & 'real ', 'real ', 'real '/)
       do s = 1, nspec
         prtl_vars(n_prtl_vars + s) = 'dens' // STR(s)
         prtl_var_types(n_prtl_vars + s) = 'real '
       end do
       n_prtl_vars = n_prtl_vars + nspec
     end if
+
+    #ifdef PRTLPAYLOADS
+      do pid = 1, 3
+        prtl_vars(n_prtl_vars + pid) = 'pld' // STR(pid)
+        prtl_var_types(n_prtl_vars + pid) = 'real '
+      end do
+      n_prtl_vars = n_prtl_vars + 3
+    #endif
 
     ! initialize field variables
     !   total number of fields (excluding particle densities)
@@ -120,10 +138,13 @@ contains
       ! hopefully less than 10 species
       fld_vars(nspec + s) = 'enrg' // STR(s)
     end do
-    fld_vars(2 * nspec + 1 : n_fld_vars) = (/'ex   ', 'ey   ', 'ez   ',&
-                                           & 'bx   ', 'by   ', 'bz   ',&
-                                           & 'jx   ', 'jy   ', 'jz   ',&
-                                           & 'xx   ', 'yy   ', 'zz   '/)
+
+    ndown = 2 * nspec + 1
+
+    fld_vars(ndown : n_fld_vars) = (/'ex   ', 'ey   ', 'ez   ',&
+                                   & 'bx   ', 'by   ', 'bz   ',&
+                                   & 'jx   ', 'jy   ', 'jz   ',&
+                                   & 'xx   ', 'yy   ', 'zz   '/)
 
     ! initialize domain output variables
     !   FIX1: maybe add # of particles per domain
@@ -136,36 +157,34 @@ contains
       allocate(glob_spectra(nspec, spec_num))
     end if
     allocate(spectra(nspec, spec_num))
-    allocate(send_spec_int(spec_num), recv_spec_int(spec_num))
-    allocate(send_spec_real(spec_num), recv_spec_real(spec_num))
-
+    allocate(send_spec(spec_num), recv_spec(spec_num))
     spectra(:,:) = 0
+
     do s = 1, nspec
      do ti = 1, species(s)%tile_nx
        do tj = 1, species(s)%tile_ny
          do tk = 1, species(s)%tile_nz
-           ! !$omp simd
-           ! !dir$ vector aligned
            do p = 1, species(s)%prtl_tile(ti, tj, tk)%npart_sp
-             u_ = species(s)%prtl_tile(ti, tj, tk)%u(p)
-             v_ = species(s)%prtl_tile(ti, tj, tk)%v(p)
-             w_ = species(s)%prtl_tile(ti, tj, tk)%w(p)
-             if ((species(s)%m_sp .eq. 0) .and. (species(s)%ch_sp .eq. 0)) then
-               energy = sqrt(u_**2 + v_**2 + w_**2)
-             else
-               energy = sqrt(1.0 + u_**2 + v_**2 + w_**2) - 1.0
-             end if
-             energy = log(energy)
-             if (energy .le. spec_min) then
-               spec_index = 1
-             else if (energy .ge. spec_max) then
-               spec_index = spec_num
-             else
-               spec_index = INT(CEILING((energy - spec_min) * REAL(spec_num) / (spec_max - spec_min)))
-               if (spec_index .lt. 1) spec_index = 1
-               if (spec_index .gt. spec_num) spec_index = spec_num
-             end if
-             spectra(s, spec_index) = spectra(s, spec_index) + 1
+            u_ = species(s)%prtl_tile(ti, tj, tk)%u(p)
+            v_ = species(s)%prtl_tile(ti, tj, tk)%v(p)
+            w_ = species(s)%prtl_tile(ti, tj, tk)%w(p)
+            if ((species(s)%m_sp .eq. 0) .and. (species(s)%ch_sp .eq. 0)) then
+              energy = sqrt(u_**2 + v_**2 + w_**2)
+            else
+              energy = sqrt(1.0 + u_**2 + v_**2 + w_**2) - 1.0
+            end if
+            if (spec_log_bins) energy = log(energy + 1e-8)
+            if (energy .le. spec_min) then
+              spec_index = 1
+            else if (energy .ge. spec_max) then
+              spec_index = spec_num
+            else
+              spec_index = INT(CEILING((energy - spec_min) * REAL(spec_num) / (spec_max - spec_min)))
+              if (spec_index .lt. 1) spec_index = 1
+              if (spec_index .gt. spec_num) spec_index = spec_num
+            end if
+            spectra(s, spec_index) = spectra(s, spec_index) + species(s)%prtl_tile(ti, tj, tk)%weight(p)
+
            end do
          end do
        end do
@@ -174,31 +193,113 @@ contains
 
     ! send to root rank
     do s = 1, nspec
-      send_spec_int(:) = spectra(s,:)
-      call MPI_REDUCE(send_spec_int, recv_spec_int, spec_num, MPI_INTEGER,&
+      send_spec(:) = spectra(s,:)
+      call MPI_REDUCE(send_spec, recv_spec, spec_num, MPI_REAL,&
                     & MPI_SUM, 0, MPI_COMM_WORLD, ierr)
-      glob_spectra(s,:) = recv_spec_int(:)
-
-      #ifdef RADIATION
-        ! compute radiation spectra
-        if (allocated(rad_spectra) .and. allocated(glob_rad_spectra)) then
-          send_spec_real(:) = rad_spectra(s,:)
-          call MPI_REDUCE(send_spec_real, recv_spec_real, spec_num, MPI_REAL,&
-                        & MPI_SUM, 0, MPI_COMM_WORLD, ierr)
-          glob_rad_spectra(s,:) = recv_spec_real(:)
-          rad_spectra(s,:) = 0.0
-        end if
-      #endif
+      glob_spectra(s,:) = recv_spec(:)
     end do
 
     if (allocated(spectra)) deallocate(spectra)
-    if (allocated(send_spec_int)) deallocate(send_spec_int)
-    if (allocated(recv_spec_int)) deallocate(recv_spec_int)
-    if (allocated(send_spec_real)) deallocate(send_spec_real)
-    if (allocated(recv_spec_real)) deallocate(recv_spec_real)
+    if (allocated(send_spec)) deallocate(send_spec)
+    if (allocated(recv_spec)) deallocate(recv_spec)
   end subroutine initializeOutput
 
+  subroutine writeParams(step, time)
+    implicit none
+    integer, intent(in)     :: step, time
+    integer                 :: n
+    character(len=STR_MAX)  :: FMT
+    character(len=STR_MAX)  :: filename, stepchar
+
+    if (mpi_rank .eq. 0) then
+      write(stepchar, "(i5.5)") step
+      filename = trim(output_dir_name) // '/params.' // trim(stepchar)
+      open (UNIT_params, file=filename, status="replace", access="stream", form="formatted")
+      FMT = '(A52,I10)'
+      write (UNIT_params, FMT) 'timestep', time
+
+      do n = 1, sim_params%count
+        if (sim_params%param_type(n) .eq. 1) then
+          FMT = '(A30,A1,A20,A1,I10)'
+          write (UNIT_params, FMT) trim(sim_params%param_group(n)%str), ':',&
+                                 & trim(sim_params%param_name(n)%str), ':',&
+                                 & sim_params%param_value(n)%value_int
+        else if (sim_params%param_type(n) .eq. 2) then
+          FMT = getFMTForReal(sim_params%param_value(n)%value_real)
+          FMT = '(A30,A1,A20,A1,' // trim(FMT) // ')'
+          write (UNIT_params, FMT) trim(sim_params%param_group(n)%str), ':',&
+                       & trim(sim_params%param_name(n)%str), ':',&
+                       & sim_params%param_value(n)%value_real
+        else if (sim_params%param_type(n) .eq. 3) then
+          FMT = '(A30,A1,A20,A1,L10)'
+          write (UNIT_params, FMT) trim(sim_params%param_group(n)%str), ':',&
+                       & trim(sim_params%param_name(n)%str), ':',&
+                       & sim_params%param_value(n)%value_bool
+        else
+          call throwError('ERROR. Unknown `param_type` in `saveAllParameters`.')
+        end if
+      end do
+      close (UNIT_params)
+    end if
+  end subroutine writeParams
+
   #ifdef HDF5
+  subroutine writeParams_hdf5(step, time)
+    implicit none
+    integer, intent(in)               :: step, time
+    character(len=STR_MAX)            :: stepchar, filename
+    integer                           :: n, error, datarank
+    integer(HID_T)                    :: file_id, dspace_id, dset_id
+    integer(HSIZE_T), dimension(1)    :: data_dims
+    integer, allocatable              :: data_int(:)
+    real, allocatable                 :: data_real(:)
+    character(len=STR_MAX)            :: dsetname
+
+    if (mpi_rank .eq. 0) then
+      datarank = 1
+      data_dims(1) = 1
+      allocate(data_real(1))
+      allocate(data_int(1))
+
+      write(stepchar, "(i5.5)") step
+      filename = trim(output_dir_name) // '/params.' // trim(stepchar)
+
+      dsetname = 'timestep'
+      call h5open_f(error)
+      call h5fcreate_f(filename, H5F_ACC_TRUNC_F, file_id, error)
+      call h5screate_simple_f(datarank, data_dims, dspace_id, error)
+      call h5dcreate_f(file_id, trim(dsetname), H5T_NATIVE_INTEGER, dspace_id, dset_id, error)
+      data_int(1) = time
+      call h5dwrite_f(dset_id, H5T_NATIVE_INTEGER, data_int, data_dims, error)
+      call h5dclose_f(dset_id, error)
+      call h5sclose_f(dspace_id, error)
+
+      do n = 1, sim_params%count
+        dsetname = trim(sim_params%param_group(n)%str) // ':' // trim(sim_params%param_name(n)%str)
+        call h5screate_simple_f(datarank, data_dims, dspace_id, error)
+        if (sim_params%param_type(n) .eq. 1) then
+          call h5dcreate_f(file_id, trim(dsetname), H5T_NATIVE_INTEGER, dspace_id, dset_id, error)
+          data_int(1) = sim_params%param_value(n)%value_int
+          call h5dwrite_f(dset_id, H5T_NATIVE_INTEGER, data_int, data_dims, error)
+        else if (sim_params%param_type(n) .eq. 2) then
+          call h5dcreate_f(file_id, trim(dsetname), H5T_NATIVE_REAL, dspace_id, dset_id, error)
+          data_real(1) = sim_params%param_value(n)%value_real
+          call h5dwrite_f(dset_id, H5T_NATIVE_REAL, data_real, data_dims, error)
+        else if (sim_params%param_type(n) .eq. 3) then
+          call h5dcreate_f(file_id, trim(dsetname), H5T_NATIVE_INTEGER, dspace_id, dset_id, error)
+          data_int(1) = sim_params%param_value(n)%value_bool
+          call h5dwrite_f(dset_id, H5T_NATIVE_INTEGER, data_int, data_dims, error)
+        else
+          call throwError('ERROR. Unknown `param_type` in `saveAllParameters`.')
+        end if
+        call h5dclose_f(dset_id, error)
+        call h5sclose_f(dspace_id, error)
+      end do
+      call h5fclose_f(file_id, error)
+      call h5close_f(error)
+    end if
+  end subroutine writeParams_hdf5
+
   subroutine writeXDMF_hdf5(step, time, ni, nj, nk)
     implicit none
     integer, intent(in)               :: step, time, ni, nj, nk
@@ -282,10 +383,11 @@ contains
     real                              :: jx0, jy0, jz0
 
     ! downsampling variables
-    integer :: this_x0, this_y0, this_z0, this_sx, this_sy, this_sz
-    integer :: i_start, i_end, j_start, j_end, k_start, k_end
-    integer :: offset_i, offset_j, offset_k, i1, j1, k1
-    integer :: n_i, n_j, n_k, glob_n_i, glob_n_j, glob_n_k
+    integer           :: this_x0, this_y0, this_z0, this_sx, this_sy, this_sz
+    integer           :: i_start, i_end, j_start, j_end, k_start, k_end
+    integer           :: offset_i, offset_j, offset_k
+    integer(kind=2)   :: i1, j1, k1
+    integer           :: n_i, n_j, n_k, glob_n_i, glob_n_j, glob_n_k
 
     ! for convenience
     this_x0 = this_meshblock%ptr%x0
@@ -308,28 +410,34 @@ contains
 
       i_start = 0; j_start = 0; k_start = 0
     else
-      offset_i = CEILING(REAL(this_x0) / REAL(output_istep))
-      offset_j = CEILING(REAL(this_y0) / REAL(output_istep))
+      i_start = 0; i_end = 0
+      offset_i = 0; n_i = 0
+      glob_n_i = 1
 
-      i_start = CEILING(REAL(this_x0) / REAL(output_istep)) * output_istep - this_x0
-      i_end = (CEILING(REAL(this_x0 + this_sx) / REAL(output_istep)) - 1) * output_istep - this_x0
-      j_start = CEILING(REAL(this_y0) / REAL(output_istep)) * output_istep - this_y0
-      j_end = (CEILING(REAL(this_y0 + this_sy) / REAL(output_istep)) - 1) * output_istep - this_y0
+      j_start = 0; j_end = 0
+      offset_j = 0; n_j = 0
+      glob_n_j = 1
 
-      n_i = (i_end - i_start) / output_istep
-      n_j = (j_end - j_start) / output_istep
-
-      glob_n_i = CEILING(REAL(global_mesh%sx) / REAL(output_istep))
-      glob_n_i = MAX(1, glob_n_i)
-
-      glob_n_j = CEILING(REAL(global_mesh%sy) / REAL(output_istep))
-      glob_n_j = MAX(1, glob_n_j)
-
-      #ifndef threeD
-        k_start = 0; k_end = 0
-        offset_k = 0; n_k = 0
-        glob_n_k = 1
-      #else
+      k_start = 0; k_end = 0
+      offset_k = 0; n_k = 0
+      glob_n_k = 1
+      #if defined(oneD) || defined (twoD) || defined (threeD)
+        offset_i = CEILING(REAL(this_x0) / REAL(output_istep))
+        i_start = CEILING(REAL(this_x0) / REAL(output_istep)) * output_istep - this_x0
+        i_end = (CEILING(REAL(this_x0 + this_sx) / REAL(output_istep)) - 1) * output_istep - this_x0
+        n_i = (i_end - i_start) / output_istep
+        glob_n_i = CEILING(REAL(global_mesh%sx) / REAL(output_istep))
+        glob_n_i = MAX(1, glob_n_i)
+      #endif
+      #if defined(twoD) || defined (threeD)
+        offset_j = CEILING(REAL(this_y0) / REAL(output_istep))
+        j_start = CEILING(REAL(this_y0) / REAL(output_istep)) * output_istep - this_y0
+        j_end = (CEILING(REAL(this_y0 + this_sy) / REAL(output_istep)) - 1) * output_istep - this_y0
+        n_j = (j_end - j_start) / output_istep
+        glob_n_j = CEILING(REAL(global_mesh%sy) / REAL(output_istep))
+        glob_n_j = MAX(1, glob_n_j)
+      #endif
+      #if defined(threeD)
         offset_k = CEILING(REAL(this_z0) / REAL(output_istep))
         k_start = CEILING(REAL(this_z0) / REAL(output_istep)) * output_istep - this_z0
         k_end = (CEILING(REAL(this_z0 + this_sz) / REAL(output_istep)) - 1) * output_istep - this_z0
@@ -339,7 +447,7 @@ contains
       #endif
     end if
 
-    if (mpi_rank .eq. 0) then
+    if ((mpi_rank .eq. 0) .and. write_xdmf) then
       call writeXDMF_hdf5(step, time, glob_n_i, glob_n_j, glob_n_k)
     end if
 
@@ -353,14 +461,6 @@ contains
     global_dims(2) = glob_n_j
     global_dims(3) = glob_n_k
 
-    ! mpi_f08 thing
-    ! call MPI_INFO_CREATE(FILE_INFO_TEMPLATE, error)
-    ! call MPI_INFO_SET(FILE_INFO_TEMPLATE, "access_style", "write_once", error)
-    ! call MPI_INFO_SET(FILE_INFO_TEMPLATE, "collective_buffering", "true", error)
-    ! call MPI_INFO_SET(FILE_INFO_TEMPLATE, "cb_block_size", "4194304", error)
-    ! call MPI_INFO_SET(FILE_INFO_TEMPLATE, "cb_buffer_size", "16777216", error)
-    ! call MPI_INFO_SET(FILE_INFO_TEMPLATE, "cb_nodes", "1", error)
-
     call h5open_f(error)
     call h5pcreate_f(H5P_FILE_ACCESS_F, plist_id, error)
     call h5pset_fapl_mpio_f(plist_id, h5comm, h5info, error)
@@ -372,19 +472,7 @@ contains
     end do
 
     do f = 1, n_fld_vars
-      if (fld_vars(f)(1:4) .eq. 'dens') then
-        writing_lgarrQ = .true.
-        s = STRtoINT(fld_vars(f)(5:5))
-        call computeDensity(s, reset=.true.) ! filled `lg_arr` with density of species `s`
-        call exchangeArray()
-      else if (fld_vars(f)(1:4) .eq. 'enrg') then
-        writing_lgarrQ = .true.
-        s = STRtoINT(fld_vars(f)(5:5))
-        call computeEnergy(s, reset=.true.) ! filled `lg_arr` with energies of species `s`
-        call exchangeArray()
-      else
-        writing_lgarrQ = .false.
-      end if
+      call prepareFieldForOutput(fld_vars(f), writing_lgarrQ)
 
       call h5dcreate_f(file_id, fld_vars(f), H5T_NATIVE_REAL, filespace(f), &
                      & dset_id(f), error)
@@ -404,48 +492,7 @@ contains
             i = i_start + i1 * output_istep
             j = j_start + j1 * output_istep
             k = k_start + k1 * output_istep
-            select case (trim(fld_vars(f)))
-            case('ex')
-              call interpFromEdges(0.0, 0.0, 0.0, i, j, k, ex, ey, ez, ex0, ey0, ez0)
-              sm_arr(i1, j1, k1) = ex0 * B_norm
-            case('ey')
-              call interpFromEdges(0.0, 0.0, 0.0, i, j, k, ex, ey, ez, ex0, ey0, ez0)
-              sm_arr(i1, j1, k1) = ey0 * B_norm
-            case('ez')
-              call interpFromEdges(0.0, 0.0, 0.0, i, j, k, ex, ey, ez, ex0, ey0, ez0)
-              sm_arr(i1, j1, k1) = ez0 * B_norm
-            case('bx')
-              call interpFromFaces(0.0, 0.0, 0.0, i, j, k, bx, by, bz, bx0, by0, bz0)
-              sm_arr(i1, j1, k1) = bx0 * B_norm
-            case('by')
-              call interpFromFaces(0.0, 0.0, 0.0, i, j, k, bx, by, bz, bx0, by0, bz0)
-              sm_arr(i1, j1, k1) = by0 * B_norm
-            case('bz')
-              call interpFromFaces(0.0, 0.0, 0.0, i, j, k, bx, by, bz, bx0, by0, bz0)
-              sm_arr(i1, j1, k1) = bz0 * B_norm
-            case('jx')
-              call interpFromEdges(0.0, 0.0, 0.0, i, j, k, jx, jy, jz, jx0, jy0, jz0)
-              sm_arr(i1, j1, k1) = -jx0 * B_norm
-            case('jy')
-              call interpFromEdges(0.0, 0.0, 0.0, i, j, k, jx, jy, jz, jx0, jy0, jz0)
-              sm_arr(i1, j1, k1) = -jy0 * B_norm
-            case('jz')
-              call interpFromEdges(0.0, 0.0, 0.0, i, j, k, jx, jy, jz, jx0, jy0, jz0)
-              sm_arr(i1, j1, k1) = -jz0 * B_norm
-            case('xx')
-              sm_arr(i1, j1, k1) = REAL(this_meshblock%ptr%x0 + i, 4)
-            case('yy')
-              sm_arr(i1, j1, k1) = REAL(this_meshblock%ptr%y0 + j, 4)
-            case('zz')
-              sm_arr(i1, j1, k1) = REAL(this_meshblock%ptr%z0 + k, 4)
-            case default
-              if (((fld_vars(f)(1:4) .ne. 'dens') .and. (fld_vars(f)(1:4) .ne. 'enrg')) .or.&
-                 & (.not. writing_lgarrQ)) then
-                call throwError("ERROR: unrecognized `fld_vars(f)`")
-              else
-                sm_arr(i1, j1, k1) = lg_arr(i, j, k)
-              end if
-            end select
+            call selectFieldForOutput(fld_vars(f), i1, j1, k1, i, j, k, writing_lgarrQ)
           end do
         end do
       end do
@@ -474,7 +521,6 @@ contains
     integer                           :: error, ierr
     integer                           :: rnk, s, dummy_s, p, j, ln_, ti, tj, tk, temp, temp_int
     integer                           :: dataset_rank = 1
-    integer(HID_T)                    :: h5type
     integer(HSSIZE_T), dimension(1)   :: offsets
     integer(HSIZE_T), dimension(1)    :: global_dims, blocks
     integer                           :: npart_stride(nspec), npart_stride_global(nspec, mpi_size)
@@ -487,11 +533,10 @@ contains
     ! number of strided particles per each species
     do s = 1, nspec
       npart_stride(s) = 0
+      if (.not. species(s)%output_sp) cycle
       do ti = 1, species(s)%tile_nx
         do tj = 1, species(s)%tile_ny
           do tk = 1, species(s)%tile_nz
-            !$omp simd
-            !dir$ vector aligned
             do p = 1, species(s)%prtl_tile(ti, tj, tk)%npart_sp
               if (modulo(species(s)%prtl_tile(ti, tj, tk)%ind(p), output_stride) .eq. 0) then
                 npart_stride(s) = npart_stride(s) + 1
@@ -531,28 +576,32 @@ contains
       allocate(stride_ti_arr(npart_stride(s)))
       allocate(stride_tj_arr(npart_stride(s)))
       allocate(stride_tk_arr(npart_stride(s)))
-      j = 1
-      do ti = 1, species(s)%tile_nx
-        do tj = 1, species(s)%tile_ny
-          do tk = 1, species(s)%tile_nz
-            !$omp simd
-            !dir$ vector aligned
-            do p = 1, species(s)%prtl_tile(ti, tj, tk)%npart_sp
-              if (modulo(species(s)%prtl_tile(ti, tj, tk)%ind(p), output_stride) .eq. 0) then
-                stride_indices_arr(j) = p
-                stride_ti_arr(j) = ti
-                stride_tj_arr(j) = tj
-                stride_tk_arr(j) = tk
-                j = j + 1
-              end if
-            end do ! particles
-          end do ! tk
-        end do ! tj
-      end do ! ti
+
+      if (npart_stride(s) .gt. 0) then
+        j = 1
+        do ti = 1, species(s)%tile_nx
+          do tj = 1, species(s)%tile_ny
+            do tk = 1, species(s)%tile_nz
+              do p = 1, species(s)%prtl_tile(ti, tj, tk)%npart_sp
+                if (modulo(species(s)%prtl_tile(ti, tj, tk)%ind(p), output_stride) .eq. 0) then
+                  stride_indices_arr(j) = p
+                  stride_ti_arr(j) = ti
+                  stride_tj_arr(j) = tj
+                  stride_tk_arr(j) = tk
+                  j = j + 1
+                end if
+              end do ! particles
+            end do ! tk
+          end do ! tj
+        end do ! ti
+      end if
 
       do p = 1, n_prtl_vars
         call h5screate_simple_f(dataset_rank, global_dims, filespace(p), error)
       end do
+
+      call h5pcreate_f(H5P_DATASET_XFER_F, plist_id, error)
+      call h5pset_dxpl_mpio_f(plist_id, H5FD_MPIO_COLLECTIVE_F, error)
 
       do p = 1, n_prtl_vars
         ! dataset name `var_name` + '_' + `species #`
@@ -562,7 +611,6 @@ contains
         ! creating dataset for a given type
         if (trim(prtl_var_types(p)) .eq. 'int') then
           writing_intQ = .true.
-          h5type = H5T_NATIVE_INTEGER
           ! Create dataset
           allocate(temp_int_arr(npart_stride(s)))
           do j = 1, npart_stride(s)
@@ -583,7 +631,6 @@ contains
           end do
         else if (trim(prtl_var_types(p)) .eq. 'real') then
           writing_intQ = .false.
-          h5type = H5T_NATIVE_REAL
           if (prtl_vars(p)(1:4) .eq. 'dens') then
             dummy_s = STRtoINT(prtl_vars(p)(5:5))
             call computeDensity(dummy_s, reset=.true.) ! filled `lg_arr` with density of species `s`
@@ -618,6 +665,9 @@ contains
               case('w')
                 temp_real1 = species(s)%prtl_tile(ti, tj, tk)%w(temp)
                 temp_real_arr(j) = REAL(temp_real1, 4)
+              case('wei')
+                temp_real1 = species(s)%prtl_tile(ti, tj, tk)%weight(temp)
+                temp_real_arr(j) = temp_real1
               case('ex')
                 call interpFromEdges(species(s)%prtl_tile(ti, tj, tk)%dx(temp),&
                                    & species(s)%prtl_tile(ti, tj, tk)%dy(temp),&
@@ -673,12 +723,25 @@ contains
                                    & bx, by, bz, temp_real1, temp_real2, temp_real3)
                 temp_real_arr(j) = REAL(temp_real3 * B_norm, 4)
               case default
-                if (prtl_vars(p)(1:4) .ne. 'dens') then
-                  call throwError('ERROR: unrecognized `prtl_vars`: `'//trim(prtl_vars(p))//'`')
-                else
+                if (prtl_vars(p)(1:4) .eq. 'dens') then
                   temp_real_arr(j) = lg_arr(species(s)%prtl_tile(ti, tj, tk)%xi(temp),&
                                           & species(s)%prtl_tile(ti, tj, tk)%yi(temp),&
                                           & species(s)%prtl_tile(ti, tj, tk)%zi(temp))
+                #ifdef PRTLPAYLOADS
+                  else if (prtl_vars(p)(1:3) .eq. 'pld') then
+                    dummy_s = STRtoINT(prtl_vars(p)(4:4))
+                    if (dummy_s .eq. 1) then
+                      temp_real_arr(j) = species(s)%prtl_tile(ti, tj, tk)%payload1(temp)
+                    else if (dummy_s .eq. 2) then
+                      temp_real_arr(j) = species(s)%prtl_tile(ti, tj, tk)%payload2(temp)
+                    else if (dummy_s .eq. 3) then
+                      temp_real_arr(j) = species(s)%prtl_tile(ti, tj, tk)%payload3(temp)
+                    else
+                      call throwError('ERROR: only 3 payloads are allowed.')
+                    end if
+                #endif
+                else
+                  call throwError('ERROR: unrecognized `prtl_vars`: `'//trim(prtl_vars(p))//'`')
                 end if
             end select ! select variable
           end do ! strided prtls
@@ -686,32 +749,33 @@ contains
           call throwError('ERROR: unrecognized `prtl_var_types`: `'//trim(prtl_var_types(p))//'`')
         end if
 
-        call h5dcreate_f(file_id, dsetname, h5type, filespace(p),&
-                       & dset_id(p), error)
+        if (writing_intQ) then
+          call h5dcreate_f(file_id, dsetname, H5T_NATIVE_INTEGER, filespace(p), dset_id(p), error)
+        else
+          call h5dcreate_f(file_id, dsetname, H5T_NATIVE_REAL, filespace(p), dset_id(p), error)
+        end if
         call h5sclose_f(filespace(p), error)
         call h5dget_space_f(dset_id(p), filespace(p), error)
 
-        call h5pcreate_f(H5P_DATASET_XFER_F, plist_id, error)
-        call h5pset_dxpl_mpio_f(plist_id, H5FD_MPIO_COLLECTIVE_F, error)
-
         call h5screate_simple_f(dataset_rank, blocks, memspace, error)
+        call h5dget_space_f(dset_id(p), filespace(p), error)
         call h5sselect_hyperslab_f(filespace(p), H5S_SELECT_SET_F, offsets, blocks, error)
 
         ! Write the dataset collectively
         if (writing_intQ) then
-          call h5dwrite_f(dset_id(p), h5type, temp_int_arr, global_dims, error,&
+          call h5dwrite_f(dset_id(p), H5T_NATIVE_INTEGER, temp_int_arr, global_dims, error,&
                         & file_space_id = filespace(p), mem_space_id = memspace,&
-                        & xfer_prp = plist_id)
+                        & xfer_prp = h5p_default_f)
           deallocate(temp_int_arr)
         else
-          call h5dwrite_f(dset_id(p), h5type, temp_real_arr, global_dims, error,&
+          call h5dwrite_f(dset_id(p), H5T_NATIVE_REAL, temp_real_arr, global_dims, error,&
                         & file_space_id = filespace(p), mem_space_id = memspace,&
-                        & xfer_prp = plist_id)
+                        & xfer_prp = h5p_default_f)
           deallocate(temp_real_arr)
         end if
-
-        call h5sclose_f(filespace(p), error)
+        call h5sclose_f(memspace, error)
         call h5dclose_f(dset_id(p), error)
+        call h5sclose_f(filespace(p), error)
       end do
       deallocate(stride_indices_arr)
       deallocate(stride_ti_arr)
@@ -719,7 +783,6 @@ contains
       deallocate(stride_tk_arr)
     end do
 
-    call h5sclose_f(memspace, error)
     call h5pclose_f(plist_id, error)
     call h5fclose_f(file_id, error)
     call h5close_f(error)
@@ -732,7 +795,7 @@ contains
     integer                           :: error, s, i, datarank
     integer(HID_T)                    :: file_id, dset_id, dspace_id
     integer(HSIZE_T), dimension(1)    :: data_dims
-    character(len=3)                  :: dsetname
+    character(len=6)                  :: dsetname
     real, allocatable, dimension(:)   :: bin_data
 
     datarank = 1
@@ -743,7 +806,10 @@ contains
       ! saving the energy bins
       allocate(bin_data(spec_num))
       do i = 1, spec_num
-        bin_data(i) = spec_min + (REAL(i - 1, 4) / REAL(spec_num, 4)) * (spec_max - spec_min)
+        bin_data(i) = spec_min + (REAL(i - 0.5) / REAL(spec_num)) * (spec_max - spec_min)
+        if (spec_log_bins) then
+          bin_data(i) = exp(bin_data(i))
+        endif
       end do
 
       write(stepchar, "(i5.5)") step
@@ -767,34 +833,11 @@ contains
         ! writing spectra:
         dsetname = 'n' // trim(STR(s))
         call h5screate_simple_f(datarank, data_dims, dspace_id, error)
-        call h5dcreate_f(file_id, dsetname, H5T_NATIVE_INTEGER, dspace_id, &
+        call h5dcreate_f(file_id, dsetname, H5T_NATIVE_REAL, dspace_id, &
                        & dset_id, error)
-        call h5dwrite_f(dset_id, H5T_NATIVE_INTEGER, glob_spectra(s,:), data_dims, error)
+        call h5dwrite_f(dset_id, H5T_NATIVE_REAL, glob_spectra(s,:), data_dims, error)
         call h5dclose_f(dset_id, error)
         call h5sclose_f(dspace_id, error)
-
-        #ifdef RADIATION
-          if (allocated(glob_rad_spectra)) then
-            ! writing bins:
-            dsetname = 'er' // trim(STR(s))
-            call h5screate_simple_f(datarank, data_dims, dspace_id, error)
-            call h5dcreate_f(file_id, dsetname, H5T_NATIVE_REAL, dspace_id, &
-                           & dset_id, error)
-            call h5dwrite_f(dset_id, H5T_NATIVE_REAL, bin_data, data_dims, error)
-            call h5dclose_f(dset_id, error)
-            call h5sclose_f(dspace_id, error)
-
-            ! writing spectra:
-            dsetname = 'nr' // trim(STR(s))
-            call h5screate_simple_f(datarank, data_dims, dspace_id, error)
-            call h5dcreate_f(file_id, dsetname, H5T_NATIVE_REAL, dspace_id, &
-                           & dset_id, error)
-            call h5dwrite_f(dset_id, H5T_NATIVE_REAL, glob_rad_spectra(s,:), data_dims, error)
-            call h5dclose_f(dset_id, error)
-            call h5sclose_f(dspace_id, error)
-            glob_rad_spectra(s,:) = 0.0
-          end if
-        #endif
       end do
 
       ! Close the file

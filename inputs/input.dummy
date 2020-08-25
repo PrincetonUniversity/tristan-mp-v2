@@ -16,11 +16,13 @@
 
   mx0           = 64             # number of actual grid points in the x direction
   my0           = 64             # number of actual grid points in the y direction
-  mz0           = 1              # ... (ignored for 2D simulations)
+  mz0           = 1              # number of actual grid points in the z direction
 
-  boundary_x    = 1              # boundary in x: 1 = periodic, 0 = outflow
-  boundary_y    = 1              # boundary in y: 1 = periodic, 0 = outflow
-  boundary_z    = 1              # boundary in z: 1 = periodic, 0 = outflow
+  boundary_x    = 1              # boundary in x: 1 = periodic, 0 = outflow, 2 = radial outflow
+  boundary_y    = 1              # boundary in y: 1 = periodic, 0 = outflow, 2 = radial outflow
+  boundary_z    = 1              # boundary in z: 1 = periodic, 0 = outflow, 2 = radial outflow
+                                 # ... if either is "2" all will be assigned to "2"
+  abs_thick     = 20             # thickness of the absorption layer (used only when boundary is 1 or 2)
 
   resize_tiles  = 0              # reallocate particle tiles if necessary
   min_tile_nprt = 1000           # min # of allocated particles per tile
@@ -31,24 +33,58 @@
 
 <algorithm>
 
+  c             = 0.45           # speed of light
+  corr          = 1.025          # correction to the speed of light
   nfilter       = 8              # number of current filter passes
+  fieldsolver   = 1              # enable/disable the fieldsolver
+  currdeposit   = 1              # enable/disable the current deposition
 
 <restart>
 
+  enable        = 0              # enable/disable restart
+  start         = 1              # first restart step
+  interval      = 1000           # step interval between restarts
+  rewrite       = 1              # 1 = rewrite each restart; 0 = separate restart each time
+
 <output>
+
+  enable        = 1              # enable/disable output [defaults to TRUE]
+  flds_enable   = 0              # field output [defaults to TRUE]
+  prtl_enable   = 0              # prtl output [defaults to TRUE]
+  spec_enable   = 1              # spectra output [defaults to TRUE]
+  params_enable = 1              # parameters output [defaults to TRUE]
+  domain_enable = 0              # domain output [defaults to TRUE]
 
   start         = 0              # first output step
   interval      = 10             # interval between output steps
   stride        = 100            # particle stride
   istep         = 4              # field downsampling
   flds_at_prtl  = 1              # save fields at particle position
+  write_xdmf    = 1              # enable XDMF file writing (to open hdf5 in VisIt)
 
-  history       = 0              # 0 = .false.; 1 = .true.
+  hst_enable    = 0
   hst_interval  = 1
+  hst_readable  = 1              # enable the human readable format for history file (no exp notations, but can be uncertain)
 
   spec_min      = 1e-3           # `g - 1` for massive and `e` for massless
   spec_max      = 1e1            # `g - 1` for massive and `e` for massless
   spec_num      = 100            # number of energy bins
+
+<slice_output>
+
+  enable        = 1              # only works in 3d
+  start         = 0              # first slice output step
+  interval      = 10             # interval between slice output steps
+
+  # save 5 different slices of a 3d run
+  sliceX_1      = 60
+  sliceX_2      = 360
+  sliceX_3      = 560
+
+  sliceY_1      = 5
+  sliceY_2      = 140
+
+  sliceZ_1      = 100
 
 <adaptive_load_balancing>
 
@@ -91,33 +127,42 @@
   maxptl1       = 1e6           # max number of particles per core
   m1            = 1
   ch1           = -1
-  cool1         = 1             # turn ON/OFF cooling for this species
+  deposit1      = 1             # [defaults to TRUE if charge != 0]
+  move1         = 1             # [defaults to TRUE]
+  output1       = 0             # save particles to `prtl` output or not [defaults to TRUE]
 
   maxptl2       = 1e6           # max number of particles per core
   m2            = 1
   ch2           = 1
-  cool2         = 0             # turn ON/OFF cooling for this species
+  deposit2      = 1             # [defaults to TRUE if charge != 0]
+  move2         = 1             # [defaults to TRUE]
 
   maxptl3       = 1e6           # max number of particles per core
   m3            = 0
   ch3           = 0
-  bw3           = 1             # turn ON/OFF BW process on these particles
+  dwn3          = 1             # enable/disable particle downsampling
 
-<radiation>
+<downsampling>
 
-  emit_gamma_syn = 10           # `emit_gamma_syn` parameter (determines synchrotron photon peak energy)
-  gamma_syn     = 5             # `gamma_syn` parameter (determines the synchrotron cooling rate)
-  gamma_ic      = 5             # `gamma_ic` parameter (determines the IC cooling rate)
-  beta_rec      = 0.1           # fiducial number that goes into the definition of `gamma_syn` and `gamma_ic`
-  photon_sp     = 3             # emit photons to species #...
-  dens_limit    = 100           # density limit on the cooled region
+  # particle downsampling (merging) parameters
+  interval      = 10
+  start         = 1             # starting timestep
+  max_weight    = 100           # maximum weight of merging particles
 
-<bw_pp>
+  cartesian_bins = 0            # cartesian or spherical momentum binning
+  energy_min    = 1e-1          # min energy of merged particle
+  energy_max    = 1e1           # max energy of merged particle
+  int_weights   = 1             # force integer weights when merging
 
-  tau_BW        = 0.0001        # fiducial Breit-Wheeler cross section
-  interval      = 10            # perform BW once every `interval` timestep
-  algorithm     = 1             # 1 = binary collisions, 2 = MC pairing, 3 = hybrid
-  electron_sp   = 1             # save produced electrons to species #...
-  positron_sp   = 1             # save produced positrons to species #...
+  # if spherical binning
+  angular_bins  = 5             # number of angular bins (theta/phi)
+  energy_bins   = 5             # number of log energy bins
+  log_e_bins    = 1             # log or linear energy bins
+
+  # if cartesian binning
+  dynamic_bins  = 1             # take min/max energy locally in each tile...
+                                # (energ_max/min still set the global maxima)
+  mom_bins      = 5             # number of momentum bins in XYZ phase space
+  mom_spread    = 0.1           # max momentum spread allowed for dynamic bins
 
 <problem>

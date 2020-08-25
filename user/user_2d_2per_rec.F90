@@ -17,17 +17,9 @@ module m_userfile
   !...............................................................!
 
   !--- PRIVATE functions -----------------------------------------!
-  private :: userInitParticles, userInitFields, userReadInput,&
-           & userSpatialDistribution
+  private :: userSpatialDistribution
   !...............................................................!
 contains
-  subroutine userInitialize()
-    implicit none
-    call userReadInput()
-    call userInitParticles()
-    call userInitFields()
-  end subroutine userInitialize
-
   !--- initialization -----------------------------------------!
   subroutine userReadInput()
     implicit none
@@ -103,7 +95,7 @@ subroutine userInitFields()
 
   sx_glob = REAL(global_mesh%sx)
   do i = 0, this_meshblock%ptr%sx - 1
-    x_glob = i + this_meshblock%ptr%x0
+    x_glob = i + this_meshblock%ptr%x0 + 0.5
     do j = 0, this_meshblock%ptr%sy - 1
       do k = 0, this_meshblock%ptr%sz - 1
         by(i, j, k) = tanh((x_glob - cs_x1 * sx_glob) / current_width) -&
@@ -140,9 +132,23 @@ end subroutine userInitFields
     integer, optional, intent(in) :: step
   end subroutine userParticleBoundaryConditions
 
-  subroutine userFieldBoundaryConditions(step)
+  subroutine userFieldBoundaryConditions(step, updateE, updateB)
     implicit none
     integer, optional, intent(in) :: step
+    logical, optional, intent(in) :: updateE, updateB
+    logical                       :: updateE_, updateB_
+
+    if (present(updateE)) then
+      updateE_ = updateE
+    else
+      updateE_ = .true.
+    end if
+
+    if (present(updateB)) then
+      updateB_ = updateB
+    else
+      updateB_ = .true.
+    end if
   end subroutine userFieldBoundaryConditions
   !............................................................!
 end module m_userfile

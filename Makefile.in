@@ -1,5 +1,5 @@
-# Template for TRISTAN-MP Makefile
-# Kindly borrowed from ATHENA++
+# Template for `TRISTAN-MP v2` Makefile
+# Kindly borrowed from `Athena++`
 SHELL=/bin/sh
 
 # Files for conditional compilation
@@ -24,15 +24,18 @@ SRC_FILES := $(SRC_DIR)global_namespace.F90 \
              $(SRC_DIR)objects/domain.F90 \
              $(SRC_DIR)objects/particles.F90 \
              $(SRC_DIR)objects/fields.F90 \
-             $(SRC_DIR)tools/helpers.F90 \
              $(SRC_DIR)logistics/finalize.F90 \
              $(SRC_DIR)tools/error_handling.F90 \
-						 $(SRC_DIR)tools/binary_coupling.F90 \
+						 $(SRC_DIR)tools/helpers.F90 \
+						 $(SRC_DIR)tools/mom_binning.F90 \
+						 $(SRC_DIR)logistics/binary_coupling.F90 \
              $(SRC_DIR)logistics/particle_logistics.F90 \
+						 $(SRC_DIR)logistics/particle_downsampling.F90 \
              $(SRC_DIR)load_balancing/static_lb.F90 \
              $(SRC_DIR)load_balancing/adaptive_lb.F90 \
              $(SRC_DIR)load_balancing/loadbalancing.F90 \
 						 $(SRC_DIR)physics/bw_pp.F90 \
+						 $(SRC_DIR)physics/compton.F90 \
              $(SRC_DIR)physics/radiation.F90 \
              $(SRC_DIR)physics/thermal_plasma.F90 \
              $(SRC_DIR)physics/powerlaw_plasma.F90 \
@@ -41,7 +44,10 @@ SRC_FILES := $(SRC_DIR)global_namespace.F90 \
              $(SRC_DIR)logistics/exchange_fields.F90 \
              $(SRC_DIR)logistics/exchange_currents.F90 \
              $(SRC_DIR)logistics/exchange_array.F90 \
+						 $(SRC_DIR)io/write_helpers.F90 \
              $(SRC_DIR)io/write_output.F90 \
+						 $(SRC_DIR)io/write_slice.F90 \
+						 $(SRC_DIR)io/write_restart.F90 \
              $(SRC_DIR)io/write_history.F90 \
              $(SRC_DIR)io/read_input.F90 \
              $(addprefix $(USR_DIR), $(USER_FILE).F90) \
@@ -52,6 +58,13 @@ SRC_FILES := $(SRC_DIR)global_namespace.F90 \
              $(SRC_DIR)logistics/initialize.F90 \
              $(SRC_DIR)tristanmainloop.F90 \
              $(SRC_DIR)tristan.F90
+
+INCL_FILES := $(SRC_DIR)tools/interp_efield.F \
+							$(SRC_DIR)tools/interp_bfield.F \
+							$(SRC_DIR)algorithms/boris/boris_push.F \
+							$(SRC_DIR)algorithms/boris/boris_update.F \
+							$(SRC_DIR)algorithms/gca/gca_routine.F \
+							$(SRC_DIR)algorithms/gca/gca_ecrossb_drift.F
 
 PREC_SRC_FILES := $(addprefix $(PREC_SRC_DIR), $(notdir $(SRC_FILES:.F90=_.F90)))
 
@@ -68,6 +81,7 @@ dirs:
 
 precomp:
 	$(foreach fl, $(SRC_FILES), cpp -nostdinc -C -P -w $(PFLAGS) $(fl) > $(addprefix $(PREC_SRC_DIR), $(notdir $(fl:.F90=_.F90)));)
+	$(foreach fl, $(INCL_FILES), cpp -nostdinc -C -P -w $(PFLAGS) $(fl) > $(addprefix $(PREC_SRC_DIR), $(notdir $(fl:.F=.F)));)
 
 $(EXECUTABLE):$(OBJ_FILES)
 	$(FC) $(FFLAGS) $(PFLAGS) -o $@ $(OBJ_FILES)

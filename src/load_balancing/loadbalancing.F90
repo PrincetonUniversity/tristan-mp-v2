@@ -20,13 +20,13 @@ module m_loadbalancing
 contains
   subroutine redistributeMeshblocksSLB(spat_load_ptr)
     implicit none
-    ! pointer to a user defined function ... 
+    ! pointer to a user defined function ...
     ! ... that computes the spatial loads
     procedure (spatialDistribution), pointer, intent(in) :: spat_load_ptr
     integer :: ntimes
     integer :: nit
-    ntimes = MAX(sizex, sizey, sizez) * 5
-    
+    ntimes = MAX(sizex, sizey, sizez) * 10
+
     do nit = 1, ntimes
       if (slb_x) then
         call computeLoadSLB(lb_load, spat_load_ptr)
@@ -50,7 +50,7 @@ contains
         meshblocks(:) = new_meshblocks(:)
       end if
     end do
-    
+
   end subroutine redistributeMeshblocksSLB
 
   ! accumulate loads from all the sources
@@ -62,7 +62,7 @@ contains
                      & lb_load_glob, 1, MPI_INTEGER,&
                      & MPI_COMM_WORLD, ierr)
   end subroutine accumulateLoads
-  
+
   ! this routine defines the algorithm for load balancing
   !   it can be used in any direction for already predefined domain slabs
   subroutine balanceLoad(load0, s0_old, load1, s1_old,&
@@ -97,14 +97,14 @@ contains
       end if
     #endif
   end subroutine balanceLoad
-  
+
   subroutine metaRedistInX(sxmin)
-    implicit none 
+    implicit none
     integer, intent(in)   :: sxmin
     integer               :: delta_i, i, j, k, cnt
     integer               :: sx0_old, sx1_old, sx0_new, sx1_new
     integer               :: load_x0, load_x1
-    
+
     if (.not. allocated(lb_group_x0)) allocate(lb_group_x0(sizey * sizez))
     if (.not. allocated(lb_group_x1)) allocate(lb_group_x1(sizey * sizez))
 
@@ -158,12 +158,12 @@ contains
   end subroutine metaRedistInX
 
   subroutine metaRedistInY(symin)
-    implicit none 
+    implicit none
     integer, intent(in)   :: symin
     integer               :: delta_j, i, j, k, cnt
     integer               :: sy0_old, sy1_old, sy0_new, sy1_new
     integer               :: load_y0, load_y1
-    
+
     if (.not. allocated(lb_group_y0)) allocate(lb_group_y0(sizex * sizez))
     if (.not. allocated(lb_group_y1)) allocate(lb_group_y1(sizex * sizez))
 
@@ -217,12 +217,12 @@ contains
   end subroutine metaRedistInY
 
   subroutine metaRedistInZ(szmin)
-    implicit none 
+    implicit none
     integer, intent(in)   :: szmin
     integer               :: delta_k, i, j, k, cnt
     integer               :: sz0_old, sz1_old, sz0_new, sz1_new
     integer               :: load_z0, load_z1
-    
+
     if (.not. allocated(lb_group_z0)) allocate(lb_group_z0(sizex * sizey))
     if (.not. allocated(lb_group_z1)) allocate(lb_group_z1(sizex * sizey))
 

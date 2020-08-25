@@ -5,6 +5,9 @@ module m_mainloop
   use m_helpers
   use m_aux
   use m_writeoutput
+  use m_writeslice
+  use m_writehistory
+  use m_writerestart
   use m_fldsolver
   use m_mover
   use m_currentdeposit
@@ -16,10 +19,10 @@ module m_mainloop
   use m_userfile
   use m_errors
 
-  ! extra physics
-  #ifdef QED
-    use m_qedphysics
+  #ifdef DOWNSAMPLING
+    use m_particledownsampling
   #endif
+
   implicit none
 
   integer       :: timestep
@@ -29,10 +32,10 @@ module m_mainloop
                  & t_outputstep, t_fldexchstep,&
                  & t_prtlexchxtep, t_fldslvrstep,&
                  & t_usrfuncs
-  #ifdef QED
-    real (kind=8) :: t_qedstep
-  #endif
 
+  #ifdef DOWNSAMPLING
+    real(kind=8) :: t_dwnstep
+  #endif
 
   !--- PRIVATE functions -----------------------------------------!
   private :: makeReport
@@ -44,8 +47,9 @@ module m_mainloop
            & t_outputstep, t_fldexchstep,&
            & t_prtlexchxtep, t_fldslvrstep,&
            & t_usrfuncs
-  #ifdef QED
-    private :: t_qedstep
+
+  #ifdef DOWNSAMPLING
+    private :: t_dwnstep
   #endif
   !...............................................................!
 contains
@@ -54,7 +58,6 @@ contains
     integer       :: ierr, i
     integer       :: s, ti, tj, tk, p
 
-    ! ADD needs to be changed for restart
     call MPI_BARRIER(MPI_COMM_WORLD, ierr)
     call printReport((mpi_rank .eq. 0), "Starting mainloop()")
 
@@ -64,119 +67,130 @@ contains
     t_prtlexchxtep = 0;   t_fldslvrstep = 0
     t_usrfuncs = 0
 
-    #ifdef QED
-      t_qedstep = 0
+    #ifdef DOWNSAMPLING
+      t_dwnstep = 0
     #endif
 
-    do timestep = 0, final_timestep
+    do timestep = start_timestep, final_timestep
         t_fullstep = MPI_WTIME()
 
       ! MAINLOOP >
       !-------------------------------------------------
-      ! User defined boundary conditions for fields
+      ! User defined boundary conditions for B-field
         t_usrfuncs = MPI_WTIME()
-      call userFieldBoundaryConditions(timestep)
+      call userFieldBoundaryConditions(timestep, updateE=.true., updateB=.true.)
         t_usrfuncs = MPI_WTIME() - t_usrfuncs
       !.................................................
 
       !-------------------------------------------------
       ! Exchanging `E` and `B`-fields
         t_fldexchstep = MPI_WTIME()
-      call exchangeFields(.true., .true.)
+      call exchangeFields(exchangeE=.true., exchangeB=.true.)
         t_fldexchstep = MPI_WTIME() - t_fldexchstep
       !.................................................
 
       !-------------------------------------------------
       ! Advancing 1st halfstep of `dB / dt = curl E`
         t_fldslvrstep = MPI_WTIME()
-      call advanceBHalfstep()
+      if (enable_fieldsolver) call advanceBHalfstep()
         t_fldslvrstep = MPI_WTIME() - t_fldslvrstep
+      !.................................................
+
+      !-------------------------------------------------
+      ! User defined boundary conditions for B-field
+        t_usrfuncs = MPI_WTIME() - t_usrfuncs
+      if (enable_fieldsolver) call userFieldBoundaryConditions(timestep, updateE=.false., updateB=.true.)
+        t_usrfuncs = MPI_WTIME() - t_usrfuncs
       !.................................................
 
       !-------------------------------------------------
       ! Exchanging `B`-fields
         t_fldexchstep = MPI_WTIME() - t_fldexchstep
-      call exchangeFields(.false., .true.)
+      if (enable_fieldsolver) call exchangeFields(exchangeE=.false., exchangeB=.true.)
         t_fldexchstep = MPI_WTIME() - t_fldexchstep
-      !.................................................
-
-      !-------------------------------------------------
-      ! QED business
-      #ifdef QED
-          t_qedstep = MPI_WTIME()
-        call QEDstep(timestep)
-        call clearGhostParticles()
-          t_qedstep = MPI_WTIME() - t_qedstep
-      #endif
       !.................................................
 
       !-------------------------------------------------
       ! Pushing particles
         t_movestep = MPI_WTIME()
-      call moveParticles()
+      call moveParticles(timestep)
         t_movestep = MPI_WTIME() - t_movestep
       !.................................................
 
       !-------------------------------------------------
       ! Advancing 2nd halfstep of `dB / dt = curl E`
         t_fldslvrstep = MPI_WTIME() - t_fldslvrstep
-      call advanceBHalfstep()
+      if (enable_fieldsolver) call advanceBHalfstep()
         t_fldslvrstep = MPI_WTIME() - t_fldslvrstep
+      !.................................................
+
+      !-------------------------------------------------
+      ! User defined boundary conditions for B-field
+        t_usrfuncs = MPI_WTIME() - t_usrfuncs
+      call userFieldBoundaryConditions(timestep, updateE=.false., updateB=.true.)
+        t_usrfuncs = MPI_WTIME() - t_usrfuncs
       !.................................................
 
       !-------------------------------------------------
       ! Exchanging `B`-fields
         t_fldexchstep = MPI_WTIME() - t_fldexchstep
-      call exchangeFields(.false., .true.)
+      call exchangeFields(exchangeE=.false., exchangeB=.true.)
         t_fldexchstep = MPI_WTIME() - t_fldexchstep
       !.................................................
 
       !-------------------------------------------------
       ! Advancing fullstep of `dE / dt = -curl B`
         t_fldslvrstep = MPI_WTIME() - t_fldslvrstep
-      call advanceEFullstep()
+      if (enable_fieldsolver) call advanceEFullstep()
         t_fldslvrstep = MPI_WTIME() - t_fldslvrstep
       !.................................................
 
       !-------------------------------------------------
       ! Exchanging `E`-fields
         t_fldexchstep = MPI_WTIME() - t_fldexchstep
-      call exchangeFields(.true., .false.)
+      if (enable_fieldsolver) call exchangeFields(exchangeE=.true., exchangeB=.false.)
         t_fldexchstep = MPI_WTIME() - t_fldexchstep
       !.................................................
 
       !-------------------------------------------------
       ! Depositing current: `j_s = rho_s * v_s`
         t_depositstep = MPI_WTIME()
-      call depositCurrents()
+      if (enable_currentdeposit) call depositCurrents()
         t_depositstep = MPI_WTIME() - t_depositstep
       !.................................................
 
       !-------------------------------------------------
       ! Exchanging currents
         t_fldexchstep = MPI_WTIME() - t_fldexchstep
-      call exchangeCurrents()
+      if (enable_currentdeposit) call exchangeCurrents()
         t_fldexchstep = MPI_WTIME() - t_fldexchstep
       !.................................................
 
       !-------------------------------------------------
       ! Filtering currents
         t_filterstep = MPI_WTIME()
-      call filterCurrents()
+      if (enable_currentdeposit) call filterCurrents()
         t_filterstep = MPI_WTIME() - t_filterstep
       !.................................................
 
       !-------------------------------------------------
       ! Adding currents: `dE / dt += -j`
         t_fldslvrstep = MPI_WTIME() - t_fldslvrstep
-      call addCurrents()
+      if (enable_fieldsolver) call addCurrents()
         t_fldslvrstep = MPI_WTIME() - t_fldslvrstep
+      !.................................................
+
+      !-------------------------------------------------
+      ! User defined boundary conditions for E-field
+        t_usrfuncs = MPI_WTIME() - t_usrfuncs
+      call userFieldBoundaryConditions(timestep, updateE=.true., updateB=.false.)
+        t_usrfuncs = MPI_WTIME() - t_usrfuncs
       !.................................................
 
       !-------------------------------------------------
       ! Exchanging `E`-fields
         t_fldexchstep = MPI_WTIME() - t_fldexchstep
-      call exchangeFields(.true., .false.)
+      call exchangeFields(exchangeE=.true., exchangeB=.false.)
         t_fldexchstep = MPI_WTIME() - t_fldexchstep
       !.................................................
 
@@ -194,18 +208,59 @@ contains
       !     ... boundary conditions for particles
         t_usrfuncs = MPI_WTIME() - t_usrfuncs
       call userParticleBoundaryConditions(timestep)
-      call clearGhostParticles() ! hack
+      call clearGhostParticles()
       call userDriveParticles(timestep)
         t_usrfuncs = MPI_WTIME() - t_usrfuncs
       !.................................................
 
       !-------------------------------------------------
+      ! Particle downsampling
+      #ifdef DOWNSAMPLING
+          t_dwnstep = MPI_WTIME()
+        call downsamplingStep(timestep)
+        call clearGhostParticles()
+          t_dwnstep = MPI_WTIME() - t_dwnstep
+      #endif
+      !.................................................
+
+      !-------------------------------------------------
       ! Output
       t_outputstep = 0
-      if ((modulo(timestep, output_interval) .eq. 0) .and.&
+      if ((output_enable) .and.&
+        & (modulo(timestep, output_interval) .eq. 0) .and.&
         & (timestep .ge. output_start)) then
         t_outputstep = MPI_WTIME()
         call writeOutput(timestep)
+        t_outputstep = MPI_WTIME() - t_outputstep
+      end if
+
+      if ((hst_enable) .and.&
+        & (modulo(timestep, hst_interval) .eq. 0)) then
+        t_outputstep = MPI_WTIME() - t_outputstep
+        call writeHistory(timestep)
+        t_outputstep = MPI_WTIME() - t_outputstep
+      end if
+      !.................................................
+
+      !-------------------------------------------------
+      ! Slices
+      if ((slice_enable) .and.&
+        & (timestep .ge. slice_start) .and.&
+        & (modulo(timestep, slice_interval) .eq. 0)) then
+        t_outputstep = MPI_WTIME()
+        call writeSlices(timestep)
+        t_outputstep = MPI_WTIME() - t_outputstep
+      end if
+      !.................................................
+
+      !-------------------------------------------------
+      ! Restart
+      if ((rst_enable) .and.&
+        & (timestep .ge. rst_start) .and.&
+        & (modulo(timestep - rst_start, rst_interval) .eq. 0) .and.&
+        & (timestep .gt. 0)) then
+        t_outputstep = MPI_WTIME() - t_outputstep
+        call writeRestart(timestep)
         t_outputstep = MPI_WTIME() - t_outputstep
       end if
       !.................................................
@@ -225,15 +280,15 @@ contains
     integer, intent(in)           :: tstep
     integer                       :: ierr, s, ti, tj, tk
     real                          :: fullstep
-    integer, allocatable          :: nprt_sp(:), nprt_sp_global(:,:)
+    integer(kind=8), allocatable  :: nprt_sp(:), nprt_sp_global(:,:)
     real(kind=8), allocatable     :: dt_fullstep(:), dt_movestep(:),&
                                    & dt_depositstep(:), dt_filterstep(:),&
                                    & dt_outputstep(:), dt_fldexchstep(:),&
                                    & dt_prtlexchxtep(:), dt_fldslvrstep(:),&
                                    & dt_usrfuncs(:)
 
-    #ifdef QED
-      real(kind=8), allocatable     :: dt_qedstep(:)
+    #ifdef DOWNSAMPLING
+      real(kind=8), allocatable     :: dt_dwnstep(:)
     #endif
 
     ! full # of particles for each species
@@ -249,8 +304,8 @@ contains
       end do
     end do
 
-    call MPI_GATHER(nprt_sp, nspec, MPI_INTEGER,&
-                  & nprt_sp_global, nspec, MPI_INTEGER,&
+    call MPI_GATHER(nprt_sp, nspec, MPI_INTEGER8,&
+                  & nprt_sp_global, nspec, MPI_INTEGER8,&
                   & 0, MPI_COMM_WORLD, ierr)
 
     allocate(dt_fullstep(mpi_size), dt_movestep(mpi_size))
@@ -287,17 +342,17 @@ contains
                   & dt_usrfuncs, 1, MPI_REAL8,&
                   & 0, MPI_COMM_WORLD, ierr)
 
-    #ifdef QED
-      allocate(dt_qedstep(mpi_size))
-      call MPI_GATHER(t_qedstep, 1, MPI_REAL8,&
-                    & dt_qedstep, 1, MPI_REAL8,&
+    #ifdef DOWNSAMPLING
+      allocate(dt_dwnstep(mpi_size))
+      call MPI_GATHER(t_dwnstep, 1, MPI_REAL8,&
+                    & dt_dwnstep, 1, MPI_REAL8,&
                     & 0, MPI_COMM_WORLD, ierr)
     #endif
 
     if (mpi_rank .eq. 0) then
       fullstep = SUM(dt_fullstep) * 1000 / mpi_size
       call printTimeHeader(tstep)
-      ! call printReport(.true., "timestep: " // STR(tstep))
+
       call printTime(dt_fullstep, "Full_step: ")
       call printTime(dt_movestep, "  move_step: ", fullstep)
       call printTime(dt_depositstep, "  deposit_step: ", fullstep)
@@ -308,22 +363,17 @@ contains
       call printTime(dt_usrfuncs, "  usr_funcs: ", fullstep)
       call printTime(dt_outputstep, "  output_step: ", fullstep)
 
-      #ifdef QED
-        call printTime(dt_qedstep, "  qed_step: ", fullstep)
+      #ifdef DOWNSAMPLING
+        call printTime(dt_dwnstep, "  dwn_step: ", fullstep)
       #endif
 
+      call printNpartHeader()
       do s = 1, nspec
-        if (s .ne. nspec) then
-          call printNpart(nprt_sp_global(s, :),&
-                        & "  nprt " // trim(STR(s)) // " [core]: ")
-        else
-          call printNpart(nprt_sp_global(s, :),&
-                        & "  nprt " // trim(STR(s)) // " [core]: ")
-        end if
+        call printNpart(nprt_sp_global(s, :),&
+                      & "  species # " // trim(STR(s)))
       end do
 
       call printTimeFooter()
-
       print *, ""
     end if
 
@@ -333,9 +383,10 @@ contains
     deallocate(dt_prtlexchxtep, dt_fldslvrstep)
     deallocate(dt_usrfuncs)
 
-    #ifdef QED
-      deallocate(dt_qedstep)
+    #ifdef DOWNSAMPLING
+      deallocate(dt_dwnstep)
     #endif
+
   end subroutine makeReport
 
 end module m_mainloop

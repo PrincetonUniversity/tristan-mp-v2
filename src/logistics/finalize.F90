@@ -61,6 +61,12 @@ contains
     if (allocated(bx)) deallocate(bx)
     if (allocated(by)) deallocate(by)
     if (allocated(bz)) deallocate(bz)
+    if (allocated(jx)) deallocate(jx)
+    if (allocated(jy)) deallocate(jy)
+    if (allocated(jz)) deallocate(jz)
+    if (allocated(jx_buff)) deallocate(jx_buff)
+    if (allocated(jy_buff)) deallocate(jy_buff)
+    if (allocated(jz_buff)) deallocate(jz_buff)
 
     ! dealloc field exchange
     if (allocated(send_fld)) deallocate(send_fld)
