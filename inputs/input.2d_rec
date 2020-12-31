@@ -5,12 +5,12 @@
 <node_configuration>
 
   sizex         = 2              # number of cpus in x direction
-  sizey         = 56             # number of cpus in y direction
+  sizey         = 112             # number of cpus in y direction
   sizez         = 1              # number of cpus in z direction
 
 <time>
 
-  last           = 1000000       # last timestep
+  last           = 20000       # last timestep
 
 <grid>
 
@@ -25,8 +25,8 @@
   resize_tiles  = 1              # reallocate particle tiles if necessary
   min_tile_nprt = 1000           # min # of allocated particles per tile
 
-  tileX         = 40             # tile dimension in x
-  tileY         = 40             # tile dimension in y
+  tileX         = 10             # tile dimension in x
+  tileY         = 10             # tile dimension in y
   tileZ         = 1              # tile dimension in z
 
 <algorithm>
@@ -49,37 +49,46 @@
 
 <plasma>
 
-  ppc0          = 4
+  ppc0          = 50
   sigma         = 100
   c_omp         = 5
 
 <particles>
 
-  nspec         = 6
+  nspec         = 2
 
   maxptl1       = 1e8           # max number of particles per core
   m1            = 1
   ch1           = -1
+  dwn1          = 1
 
   maxptl2       = 1e8           # max number of particles per core
   m2            = 1
   ch2           = 1
+  dwn2          = 1
 
-  maxptl3       = 1e8           # max number of particles per core
-  m3            = 1
-  ch3           = -1
+<downsampling>
 
-  maxptl4       = 1e8           # max number of particles per core
-  m4            = 1
-  ch4           = 1
+  # particle downsampling (merging) parameters (`dwn` flag)
+  interval      = 10            # interval between downsampling steps [1]
+  start         = 1             # starting timestep [0]
+  max_weight    = 100           # maximum weight of merging particles [1e2]
 
-  maxptl5       = 1e8           # max number of particles per core
-  m5            = 1
-  ch5           = -1
+  cartesian_bins = 0            # cartesian or spherical momentum binning [0]
+  energy_min    = 1e-1          # min energy of merged particle [1e-2]
+  energy_max    = 1e1           # max energy of merged particle [1e2]
+  int_weights   = 1             # enforce integer weights when merging [0]
 
-  maxptl6       = 1e8           # max number of particles per core
-  m6            = 1
-  ch6           = 1
+  # if spherical binning
+  angular_bins  = 5             # number of angular bins (theta/phi) [5]
+  energy_bins   = 5             # number of log energy bins [5]
+  log_e_bins    = 1             # log or linear energy bins [1]
+
+  # if cartesian binning
+  dynamic_bins  = 1             # take min/max energy locally in each tile...
+                                # (energ_max/min still set the global maxima) [0]
+  mom_bins      = 5             # number of momentum bins in XYZ phase space [5]
+  mom_spread    = 0.1           # max momentum spread allowed for dynamic bins [0.1]
 
 <problem>
 

@@ -12,8 +12,7 @@ module m_userfile
   implicit none
 
   !--- PRIVATE variables -----------------------------------------!
-  real      :: amplitude, shift_gamma
-  private   :: amplitude, shift_gamma
+  real, private      :: shift_gamma
   !...............................................................!
 
   !--- PRIVATE functions -----------------------------------------!
@@ -24,7 +23,6 @@ contains
   subroutine userReadInput()
     implicit none
     call getInput('problem', 'shift_gamma', shift_gamma)
-    call getInput('problem', 'amplitude', amplitude)
   end subroutine userReadInput
 
   function userSpatialDistribution(x_glob, y_glob, z_glob,&
@@ -50,46 +48,22 @@ contains
     implicit none
     integer   :: npart, n
     real      :: xg, yg, u_, v_, w_
-    type(maxwellian) :: maxw1, maxw2, maxw3
     procedure (spatialDistribution), pointer :: spat_distr_ptr => null()
     spat_distr_ptr => userSpatialDistribution
 
-    maxw1%temperature = 1.0e-5
-    maxw1%shift_dir = 1
-    maxw1%shift_gamma = shift_gamma
-    maxw1%shift_flag = .true.
+    u_ = shift_gamma * sqrt(1.0 - shift_gamma**(-2))
+    v_ = 0.0
+    w_ = 0.0
 
-    maxw2%temperature = 1.0e-5
-    maxw2%shift_dir = -1
-    maxw2%shift_gamma = shift_gamma
-    maxw2%shift_flag = .true.
-
-    maxw3%temperature = 1.0e-5
-
-    npart = INT(global_mesh%sx * global_mesh%sy * ppc0 * 0.5 * amplitude)
+    npart = INT(global_mesh%sx * global_mesh%sy * 0.5 * ppc0)
     do n = 1, npart
       xg = random(dseed) * global_mesh%sx
       yg = 0.5
       #ifdef twoD
         yg = random(dseed) * global_mesh%sy
       #endif
-      call generateFromMaxwellian(maxw1, u_, v_, w_)
       call injectParticleGlobally(1, xg, yg, 0.5, u_, v_, w_)
-      if (nspec .eq. 3) then
-        call generateFromMaxwellian(maxw3, u_, v_, w_)
-        call injectParticleGlobally(3, xg, yg, 0.5, 0.0, 0.0, 0.0)
-      end if
-      xg = random(dseed) * global_mesh%sx
-      yg = 0.5
-      #ifdef twoD
-        yg = random(dseed) * global_mesh%sy
-      #endif
-      call generateFromMaxwellian(maxw2, u_, v_, w_)
-      call injectParticleGlobally(2, xg, yg, 0.5, u_, v_, w_)
-      if (nspec .eq. 3) then
-        call generateFromMaxwellian(maxw3, u_, v_, w_)
-        call injectParticleGlobally(3, xg, yg, 0.5, 0.0, 0.0, 0.0)
-      end if
+      call injectParticleGlobally(2, xg, yg, 0.5, -u_, v_, w_)
     end do
   end subroutine userInitParticles
 
@@ -115,6 +89,13 @@ contains
   !............................................................!
 
   !--- driving ------------------------------------------------!
+  subroutine userCurrentDeposit(step)
+    implicit none
+    integer, optional, intent(in) :: step
+    ! called after particles move and deposit ...
+    ! ... and before the currents are added to the electric field
+  end subroutine userCurrentDeposit
+
   subroutine userDriveParticles(step)
     implicit none
     integer, optional, intent(in) :: step

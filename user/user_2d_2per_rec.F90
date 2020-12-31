@@ -107,6 +107,13 @@ end subroutine userInitFields
   !............................................................!
 
   !--- driving ------------------------------------------------!
+  subroutine userCurrentDeposit(step)
+    implicit none
+    integer, optional, intent(in) :: step
+    ! called after particles move and deposit ...
+    ! ... and before the currents are added to the electric field
+  end subroutine userCurrentDeposit
+
   subroutine userDriveParticles(step)
     implicit none
     integer, optional, intent(in) :: step

@@ -67,6 +67,7 @@ def make_get_proj(self, rx, ry, rz):
 def loadCustomStyles(style='dark_background', fs=25):
   import numpy as np
   import matplotlib.pyplot as plt
+  import matplotlib as mpl
   from matplotlib import rc
   plt.style.use(style)
   rc('font',**{'family':'monospace','sans-serif':['Verdana'],'size':fs})
@@ -93,21 +94,21 @@ def loadCustomStyles(style='dark_background', fs=25):
 
   # fire cmap
   mpl_data = RGBToPyCmap(fire_colormap_data)
-  plt.register_cmap(name='fire', data=mpl_data, lut=fire_colormap_data.shape[0])
+  plt.register_cmap(cmap=mpl.colors.LinearSegmentedColormap('fire', mpl_data, fire_colormap_data.shape[0]))
   mpl_data_r = RGBToPyCmap(fire_colormap_data[::-1,:])
-  plt.register_cmap(name='fire_r', data=mpl_data_r, lut=fire_colormap_data.shape[0])
+  plt.register_cmap(cmap=mpl.colors.LinearSegmentedColormap('fire_r', mpl_data_r, fire_colormap_data.shape[0]))
 
   # turbo cmap
   mpl_data = RGBToPyCmap(turbo_colormap_data)
-  plt.register_cmap(name='turbo', data=mpl_data, lut=turbo_colormap_data.shape[0])
+  plt.register_cmap(cmap=mpl.colors.LinearSegmentedColormap('turbo', mpl_data, turbo_colormap_data.shape[0]))
   mpl_data_r = RGBToPyCmap(turbo_colormap_data[::-1,:])
-  plt.register_cmap(name='turbo_r', data=mpl_data_r, lut=turbo_colormap_data.shape[0])
+  plt.register_cmap(cmap=mpl.colors.LinearSegmentedColormap('turbo_r', mpl_data_r, turbo_colormap_data.shape[0]))
 
   # IDL cmap
   mpl_data = RGBToPyCmap(idl_colormap_data)
-  plt.register_cmap(name='idl', data=mpl_data, lut=idl_colormap_data.shape[0])
+  plt.register_cmap(cmap=mpl.colors.LinearSegmentedColormap('idl', mpl_data, idl_colormap_data.shape[0]))
   mpl_data_r = RGBToPyCmap(idl_colormap_data[::-1,:])
-  plt.register_cmap(name='idl_r', data=mpl_data_r, lut=idl_colormap_data.shape[0])
+  plt.register_cmap(cmap=mpl.colors.LinearSegmentedColormap('idl_r', mpl_data_r, idl_colormap_data.shape[0]))
 
   # bipolar cmap
   lutsize=1024
@@ -137,6 +138,6 @@ def loadCustomStyles(style='dark_background', fs=25):
   bibolar_colormap_data = np.concatenate((rgb1[1:][::-1], rgb2))
 
   mpl_data = RGBToPyCmap(bibolar_colormap_data)
-  plt.register_cmap(name='bipolar', data=mpl_data, lut=bibolar_colormap_data.shape[0])
+  plt.register_cmap(cmap=mpl.colors.LinearSegmentedColormap('bipolar', mpl_data, bibolar_colormap_data.shape[0]))
   mpl_data_r = RGBToPyCmap(bibolar_colormap_data[::-1,:])
-  plt.register_cmap(name='bipolar_r', data=mpl_data_r, lut=bibolar_colormap_data.shape[0])
+  plt.register_cmap(cmap=mpl.colors.LinearSegmentedColormap('bipolar_r', mpl_data_r, bibolar_colormap_data.shape[0]))

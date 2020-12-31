@@ -12,13 +12,9 @@ module m_userfile
   implicit none
 
   !--- PRIVATE variables -----------------------------------------!
-  real    :: nCS_over_nUP, current_width, upstream_T, cs_x
-  real    :: injector_x1, injector_x2, injector_sx, injector_betax
-  integer :: injector_reset_interval
-
-  private :: nCS_over_nUP, current_width, upstream_T, cs_x
-  private :: injector_x1, injector_x2, injector_sx, injector_betax
-  private :: injector_reset_interval
+  real, private    :: nCS_over_nUP, current_width, upstream_T, cs_x
+  real, private    :: injector_x1, injector_x2, injector_sx, injector_betax
+  integer, private :: injector_reset_interval
   !...............................................................!
 
   !--- PRIVATE functions -----------------------------------------!
@@ -82,7 +78,7 @@ contains
     back_region%y_min = 0.0
     back_region%x_max = sx_glob
     back_region%y_max = sy_glob
-    call fillRegionWithThermalPlasma(back_region, (/3, 4/), 2, nUP, upstream_T)
+    call fillRegionWithThermalPlasma(back_region, (/1, 2/), 2, nUP, upstream_T)
 
     shift_beta = sqrt(sigma) * c_omp / (current_width * nCS_over_nUP)
     if (shift_beta .ge. 1) then
@@ -95,7 +91,7 @@ contains
     back_region%x_max = sx_glob * cs_x + 10 * current_width
     back_region%y_min = 0.0
     back_region%y_max = sy_glob
-    call fillRegionWithThermalPlasma(back_region, (/5, 6/), 2, nCS, current_sheet_T,&
+    call fillRegionWithThermalPlasma(back_region, (/1, 2/), 2, nCS, current_sheet_T,&
                                    & shift_gamma = shift_gamma, shift_dir = 3,&
                                    & spat_distr_ptr = spat_distr_ptr,&
                                    & dummy1 = cs_x * sx_glob, dummy2 = current_width)
@@ -127,6 +123,13 @@ contains
   !............................................................!
 
   !--- driving ------------------------------------------------!
+  subroutine userCurrentDeposit(step)
+    implicit none
+    integer, optional, intent(in) :: step
+    ! called after particles move and deposit ...
+    ! ... and before the currents are added to the electric field
+  end subroutine userCurrentDeposit
+
   subroutine userDriveParticles(step)
     implicit none
     integer, optional, intent(in) :: step
@@ -226,7 +229,7 @@ contains
     back_region%y_min = 0.0
     back_region%y_max = REAL(global_mesh%sy)
 
-    call fillRegionWithThermalPlasma(back_region, (/3, 4/), 2, nUP, upstream_T)
+    call fillRegionWithThermalPlasma(back_region, (/1, 2/), 2, nUP, upstream_T)
   end subroutine userParticleBoundaryConditions
 
   subroutine userFieldBoundaryConditions(step, updateE, updateB)

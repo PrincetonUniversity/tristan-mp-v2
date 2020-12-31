@@ -1,21 +1,25 @@
 import tristanVis.aux as aux
 
+from contextlib import contextmanager
 import ipywidgets as ipyW
 from IPython.display import display
 
 class FieldData2D():
-  def __init__(self, root, step, slices, isSlice,
+  def __init__(self, root, step, slices, isSlice, mask,
                extraVariables, coordinateTransformation):
     self._root = root
     self._step = step
     self.slices = slices
     self._isSlice = isSlice
-
+    self._mask = mask
     self._extraVariables = extraVariables
     self._coordinateTransformation = coordinateTransformation
 
     self.data = {}
     self.axes = []
+
+  def maskData(self, mask):
+    self._mask = mask
 
   def addVariables(self, variables):
     if (self._extraVariables is None):
@@ -58,6 +62,9 @@ class FieldData2D():
       if (self._extraVariables is not None):
         for k in self._extraVariables.keys():
           xr_data[k] = self._extraVariables[k](xr_data)
+      for k in xr_data.keys():
+        if not self._mask is None:
+          xr_data[k] = xr_data[k].where(self._mask(xr_data))
       self.data[slice] = xr_data
 
   def loadData(self):
@@ -67,7 +74,7 @@ class FieldData2D():
 
 class Simulation():
   def __init__(self,
-               root, fld_steps=None, useSlices=True,
+               root, fld_steps=None, useSlices=False, mask=None,
                coordinateTransformation={'x': lambda x: x, 'y': lambda y: y, 'z': lambda z: z},
                extraVariables=None
               ):
@@ -79,12 +86,19 @@ class Simulation():
     self.spectra = {}
     self.particles = {}
 
+    self._mask = mask
     self._fld_steps = fld_steps
     self._useSlices = useSlices
     self._extraVariables = extraVariables
     self._coordinateTransformation = coordinateTransformation
 
-    self.readFiles()
+  def __del__(self):
+    del self.fields
+    del self.spectra
+    del self.particles
+
+  def maskData(self, mask):
+    self._mask = mask
 
   def addVariables(self, variables):
     if (self._extraVariables is None):
@@ -109,7 +123,7 @@ class Simulation():
 
     if (self._useSlices):
       files = aux.listFiles(self._root + 'slices/')
-      self._slices = np.unique([file[:-6] for file in files])
+      self._slices = np.unique([file[:-6] for file in files if (not 'xdmf' in file)])
       self._slices = np.array(['='.join((lambda x: [x[0], str(int(x[1]))])(sl.lower()[5:].split('='))) for sl in self._slices])
     else:
       files = aux.listFiles(self._root)
@@ -123,12 +137,13 @@ class Simulation():
     # TODO: preload spectra
 
     for st in self._slice_steps:
-      fld = FieldData2D(self._root, st, self._slices, self._useSlices,
+      fld = FieldData2D(self._root, st, self._slices, self._useSlices, self._mask,
                         extraVariables=self._extraVariables,
                         coordinateTransformation=self._coordinateTransformation)
       self.fields.update({st: fld})
 
   def loadData(self):
+    self.readFiles()
     [fld.loadData() for st, fld in self.fields.items()]
 
 class FieldPlot2D(ipyW.VBox):
@@ -150,6 +165,8 @@ class FieldPlot2D(ipyW.VBox):
     self._kwargs['logplot'] = self._kwargs.get('logplot', False)
     self._kwargs['controls'] = self._kwargs.get('controls', True)
     self._kwargs['figsize'] = self._kwargs.get('figsize', (6, 4))
+    self._kwargs['zoomQ'] = self._kwargs.get('zoomQ', False)
+    self._kwargs['interpolation'] = self._kwargs.get('interpolation', None)
 
     if (self._kwargs['vmin'] is None):
       self._kwargs['vmin'], _ = self.findMinMax()
@@ -173,20 +190,17 @@ class FieldPlot2D(ipyW.VBox):
           ipyW.VBox([self.obj_var, self.obj_minval, self.obj_maxval]),
           ipyW.VBox([self.obj_proj, self.obj_cmap, self.obj_logplot]),
       ])
-
       self.obj_cmap.value = self._kwargs['cmap']
-
       self.obj_cmap.observe(self.update_cmap, 'value')
       self.obj_var.observe(self.update_var, 'value')
       self.obj_proj.observe(self.update_proj, 'value')
       self.obj_logplot.observe(self.update_logplot, 'value')
       self.obj_minval.observe(self.update_minval, 'value')
       self.obj_maxval.observe(self.update_maxval, 'value')
-
     output = ipyW.Output()
     with output:
       self.fig, self.ax = plt.subplots(figsize=self._kwargs['figsize'])
-    self.fig.canvas.toolbar_visible = False
+    self.fig.canvas.toolbar_visible = self._kwargs['zoomQ']
     self.fig.canvas.header_visible = False
     self.fig.canvas.footer_visible = False
 
@@ -195,6 +209,10 @@ class FieldPlot2D(ipyW.VBox):
       self.children = [self.controls, output]
     else:
       self.children = [output]
+
+  def __del__(self):
+    del self.fig
+    del self.children
 
   def findMinMax(self):
     import numpy as np
@@ -206,8 +224,6 @@ class FieldPlot2D(ipyW.VBox):
       vmin = -vv; vmax = vv
     elif self._kwargs['logplot']:
       vmin = vmax / 1e5
-    self._kwargs['vmin'] = vmin
-    self._kwargs['vmax'] = vmax
     return (vmin, vmax)
 
   def findNorm(self):
@@ -215,8 +231,10 @@ class FieldPlot2D(ipyW.VBox):
     if (self._kwargs['logplot']):
       if (self._kwargs['vmin'] * self._kwargs['vmax'] < 0):
         norm_ = mpl.colors.SymLogNorm(vmin=self._kwargs['vmin'], vmax=self._kwargs['vmax'],
-                                     linthresh=self._kwargs['vmax'] / 1e3, linscale=1)
+                                     linthresh=self._kwargs['vmax'] / 1e3, linscale=1, base=10)
       else:
+        if (self._kwargs['vmin'] * self._kwargs['vmax'] == 0):
+          self.autoMinMax(maxval=self._kwargs['vmax'])
         norm_ = mpl.colors.LogNorm(vmin=self._kwargs['vmin'], vmax=self._kwargs['vmax'])
     else:
       norm_ = mpl.colors.Normalize(vmin=self._kwargs['vmin'], vmax=self._kwargs['vmax'])
@@ -233,10 +251,9 @@ class FieldPlot2D(ipyW.VBox):
     x2min_ = coords_[x2_].values.min()
     x2max_ = coords_[x2_].values.max()
     norm_ = self.findNorm()
-
     self.im = self.ax.imshow(data_, origin='lower',
                         cmap=self._kwargs['cmap'],
-                        norm=norm_,
+                        norm=norm_, interpolation=self._kwargs['interpolation'],
                         extent=(x1min_, x1max_, x2min_, x2max_))
     try:
       self.fig.delaxes(self.fig.axes[1])
@@ -246,7 +263,6 @@ class FieldPlot2D(ipyW.VBox):
     cax = divider.append_axes("right", size="5%", pad=0.05)
     self.cbar = self.fig.colorbar(self.im, cax=cax)
     self.cbar.set_label(self._kwargs['var'].replace('_', '\_'))
-
     crds_ = list(coords_.keys())
     self.ax.set_xlabel(crds_[1])
     self.ax.set_ylabel(crds_[0])
@@ -254,18 +270,21 @@ class FieldPlot2D(ipyW.VBox):
     plt.tight_layout()
 
   def update_var(self, change):
+    import difflib
+    import re
+    oldvar = self._kwargs['var']
+    newvar = change.new
     self._kwargs['var'] = change.new
-    self.autoMinMax()
     data_ = self.simulation.fields[self._kwargs['timestep']].data[self._kwargs['proj']][self._kwargs['var']].values
     self.im.set_data(data_)
-    self.im.set_clim(vmin=self._kwargs['vmin'], vmax=self._kwargs['vmax'])
+    if re.compile("^[x,y,z]+$").match(''.join(sorted([li[-1] for li in difflib.ndiff(oldvar, newvar) if li[0] != ' ']))) is None:
+      self.autoMinMax()
+      self.im.set_clim(vmin=self._kwargs['vmin'], vmax=self._kwargs['vmax'])
     self.cbar.set_label(self._kwargs['var'].replace('_', '\_'))
 
   def update_logplot(self, change):
     self._kwargs['logplot'] = change.new
-    self.autoMinMax()
-    norm_ = self.findNorm()
-    self.im.set_norm(norm_)
+    self.im.set_norm(self.findNorm())
 
   def update_proj(self, change):
     self._kwargs['proj'] = change.new
@@ -299,19 +318,27 @@ class FieldPlot2D(ipyW.VBox):
     data_ = self.simulation.fields[self._kwargs['timestep']].data[self._kwargs['proj']][self._kwargs['var']].values
     self.im.set_data(data_)
 
-  def autoMinMax(self):
-    self._kwargs['vmin'], self._kwargs['vmax'] = self.findMinMax()
+  def autoMinMax(self, maxval=None, minval=None):
+    mn, mx = self.findMinMax()
+    if (maxval is None):
+      self._kwargs['vmax'] = mx
+    if (minval is None):
+      self._kwargs['vmin'] = mn
+    self.im.set_norm(self.findNorm())
     if self._kwargs['controls']:
       self.obj_minval.value = self._kwargs['vmin']
       self.obj_maxval.value = self._kwargs['vmax']
 
 class PlotGrid():
-  def __init__(self, simulation, timestep=None, init=[], controls=True, figsize=None):
+  def __init__(self, simulation, maxncols=2, zoom=False, interpolation=None, timestep=None, init=[], controls=True, figsize=None):
     self.simulation = simulation
     self.parameters = init
     self.controls = controls
     self.figsize = figsize
+    self.zoomQ = zoom
+    self.interpolation = interpolation
     self.panels = []
+    self.maxncols = maxncols
     if self.parameters != []:
       try:
         self.figsize = self.parameters[0]['figsize']
@@ -327,21 +354,31 @@ class PlotGrid():
     # self.button3 = ipyW.Button(description='Save .png')
     # self.button3.on_click(self.savePng)
 
+    timesteps = list(self.simulation.fields.keys())
+
     try:
       newvalue = self.parameters[0]['timestep']
     except:
-      newvalue = timestep if (not timestep is None) else list(self.simulation.fields.keys())[0]
+      newvalue = timestep if (not timestep is None) else timesteps[0]
     self.timestep = newvalue
+    try:
+      dtimestep = timesteps[-1] - timesteps[-2]
+    except:
+      dtimestep = 0
 
     # self.button2.on_click(self.nextTimestep)
-    self.step_slider = ipyW.IntSlider(min=self.simulation._slice_steps[0],
-                                      max=self.simulation._slice_steps[-1],
-                                      step=1, value=self.timestep, layout={'width': '100%'})
+    self.step_slider = ipyW.IntSlider(min=min(timesteps),
+                                      max=max(timesteps),
+                                      step=dtimestep, value=self.timestep, layout={'width': '100%'})
     self.step_slider.observe(self.changeTimestep, names="value")
 
     self.button_panel = ipyW.HBox([self.addPlot_button, self.step_slider], layout={'margin': '0px 0px 20px 0px'})
-
     self.generateGrid()
+
+  def __del__(self):
+    del self.simulation
+    del self.plotgrid
+    del self.panels
 
   def addPanel(self, b):
     if (self.controls):
@@ -354,17 +391,40 @@ class PlotGrid():
     # self.simulation.step = change.new
     # self.redraw()
 
-  def savePng(self, b):
-    fname = 'sim_%05d.png' % self.simulation.step
+  def savePng(self, filename):
     NN, ncols, nrows = self.getNxM()
-    # fig = plt.figure()
-    # ....
-    # add save PNG
+    import os
+    import numpy as np
+    import shutil
+    import PIL
+    from PIL import Image
+    temp = 'temp_'
+    if not os.path.exists(temp):
+      os.mkdir(temp)
+    filenames = []
+    for ii, subplot in enumerate(self.plotgrid.children[0].children[1].children):
+      fname = temp + '/pic_%03d.png'%ii
+      filenames.append(fname)
+      subplot.fig.savefig(fname)
+    imgs = [PIL.Image.open(i) for i in filenames]
+    min_shape = sorted([(np.sum(i.size), i.size ) for i in imgs])[0][1]
+    img_rows = []
+    for nr in range(nrows):
+      img_row = np.hstack([np.asarray(i.resize(min_shape)) for i in imgs[nr * ncols : nr * ncols + ncols]])
+      img_rows.append(img_row)
+    imgs_comb = PIL.Image.fromarray(np.vstack(img_rows))
+    shutil.rmtree(temp)
+    imgs_comb.save(filename)
 
   def getNxM(self):
     import numpy as np
     NN = len(self.parameters)
-    ncols = int(np.sqrt(NN))
+    if (NN > 1):
+      ncols = self.maxncols
+    elif NN == 0:
+      ncols = 0
+    else:
+      ncols = 1
     if (ncols > 0):
       nrows = int(np.ceil(NN / ncols))
     else:
@@ -376,7 +436,7 @@ class PlotGrid():
     plt.close('all')
     NN, ncols, nrows = self.getNxM()
     if (nrows * ncols > 0):
-      grid = ipyW.GridspecLayout(ncols, nrows)
+      grid = ipyW.GridspecLayout(nrows, ncols)
       self._oldpanels = []
       n = 0
       for i in range(grid.n_rows):
@@ -390,6 +450,8 @@ class PlotGrid():
               self.parameters[n]['figsize'] = self.figsize
             self.parameters[n]['controls'] = self.controls
             self.parameters[n]['timestep'] = self.timestep
+            self.parameters[n]['zoomQ'] = self.zoomQ
+            self.parameters[n]['interpolation'] = self.interpolation
             panel = FieldPlot2D(self.simulation, **self.parameters[n])
             self._oldpanels.append(panel)
             grid[i, j] = panel
@@ -444,3 +506,124 @@ class PlotGrid():
 
   def show(self):
     display(self.plotgrid)
+
+# not working atm...
+# class TwoDPlotAndSpectra:
+#   def __init__(self, x, y, z, field_data, spec_data, coordinates=None, imshow_kwargs={}, rectangle_kwargs={}, spectra_kwargs={}):
+#     self.x = x; self.y = y; self.z = z
+#     self.field_data = field_data
+#     self.spec_data = spec_data
+#     self.coordinates = coordinates
+#     self.imshow_kwargs = imshow_kwargs
+#     self.rectangle_kwargs = rectangle_kwargs
+#     self.spectra_kwargs = spectra_kwargs
+#     self.SHIFT = False
+#     self.specbins = []
+#
+#   def on_key_press(self, event):
+#     if event.key == 'shift':
+#       self.SHIFT = True
+#
+#   def on_key_release(self, event):
+#     if event.key == 'shift':
+#       self.SHIFT = False
+#
+#   def on_click(self, event):
+#     print (event.x, event.y)
+#     import matplotlib.patches as mpatches
+#     if (self.coordinates == 'xy'):
+#       xi = event.xdata; yi = event.ydata; zi = self.z.mean()
+#     elif (self.coordinates == 'xz'):
+#       xi = event.xdata; yi = self.y.mean(); zi = event.ydata
+#     elif (self.coordinates == 'yz'):
+#       xi = self.x.mean(); yi = event.xdata; zi = event.ydata
+#     else:
+#       raise ValueError('Wrong coordinate system')
+#     # add species #1 and #2
+#     xyz, sxyz, cnt1 = self.spec_data.getByCoordinate(1, (xi, yi, zi))
+#     xyz, sxyz, cnt2 = self.spec_data.getByCoordinate(2, (xi, yi, zi))
+#     cnt = cnt1 + cnt2
+#     if (self.coordinates == 'xy'):
+#       x0, y0 = (xyz[0], xyz[1])
+#       sx, sy = (sxyz[0], sxyz[1])
+#     elif (self.coordinates == 'xz'):
+#       x0, y0 = (xyz[0], xyz[2])
+#       sx, sy = (sxyz[0], sxyz[2])
+#     elif (self.coordinates == 'yz'):
+#       x0, y0 = (xyz[1], xyz[2])
+#       sx, sy = (sxyz[1], sxyz[2])
+#     else:
+#       raise ValueError('Wrong coordinate system')
+#     bns = np.copy(self.spec_data.ebins)
+#     if not self.spectra_kwargs['smooth'] is None:
+#       from scipy.ndimage import gaussian_filter1d as smooth
+#       cnt = smooth(np.copy(cnt / bns), self.spectra_kwargs['smooth'])
+#     else:
+#       cnt = np.copy(cnt / bns)
+#     if ((not self.SHIFT) or (self.specbins == [])):
+#       self.specbins = [(x0, y0)]
+#       self.spec_x = bns
+#       self.spec_y = cnt
+#       self.spec.set_xdata(self.spec_x)
+#       self.spec.set_ydata(self.spec_y)
+#       while len(self.fig.axes[0].patches) != 0:
+#         self.fig.axes[0].patches[0].remove()
+#       self.fig.axes[0].add_patch(mpatches.Rectangle((x0, y0), sx, sy, fc='None', zorder=100, **self.rectangle_kwargs))
+#     else:
+#       if (not (x0, y0) in self.specbins):
+#         self.specbins.append((x0, y0))
+#         self.spec_x = bns
+#         try:
+#           self.spec_y += cnt
+#         except:
+#           self.spec_y = cnt
+#         self.spec.set_xdata(self.spec_x)
+#         self.spec.set_ydata(self.spec_y)
+#         self.fig.axes[0].add_patch(mpatches.Rectangle((x0, y0), sx, sy, fc='None', zorder=100, **self.rectangle_kwargs))
+#       else:
+#         self.specbins.remove((x0, y0))
+#         self.spec_y -= cnt
+#         self.spec.set_xdata(self.spec_x)
+#         self.spec.set_ydata(self.spec_y)
+#         for rect in self.fig.axes[0].patches:
+#           if (rect.get_xy() == (x0, y0)):
+#             rect.remove()
+#             break
+#
+#     self.fig.canvas.draw()
+#     self.fig.canvas.flush_events()
+#
+#   def plot(self, figsize=(12, 4)):
+#     import matplotlib.pyplot as plt
+#     import matplotlib.patches as mpatches
+#     from mpl_toolkits.axes_grid1 import make_axes_locatable
+#     self.fig = plt.figure(figsize=figsize)
+#     if (self.coordinates is None):
+#       if self.x.min() == self.x.max():
+#         self.coordinates = 'yz'
+#       elif self.y.min() == self.y.max():
+#         self.coordinates = 'xz'
+#       elif self.z.min() == self.z.max():
+#         self.coordinates = 'xy'
+#     ax_fld = self.fig.add_subplot(121)
+#     im = ax_fld.imshow(self.field_data, origin='lower', **self.imshow_kwargs)
+#     ax_fld.set_xlabel(self.coordinates[0])
+#     ax_fld.set_ylabel(self.coordinates[1])
+#     ax_spec = self.fig.add_subplot(122)
+#     self.spec, = ax_spec.plot([], [])
+#     ax_spec.set_xlim(*self.spectra_kwargs['xlim'])
+#     ax_spec.set_ylim(*self.spectra_kwargs['ylim'])
+#     ax_spec.set_xscale('log')
+#     ax_spec.set_yscale('log')
+#     ax_spec.set_xlabel(r'$\gamma - 1$')
+#     ax_spec.set_ylabel(r'$(\gamma - 1)f(\gamma)$')
+#     divider = make_axes_locatable(ax_fld)
+#     cax = divider.append_axes("right", size="5%", pad=0.05)
+#     plt.colorbar(im, cax=cax)
+#     rect = mpatches.Rectangle((0, 0), 0, 0, fc='None', zorder=100, **self.rectangle_kwargs)
+#     ax_fld.add_patch(rect)
+#     cid = self.fig.canvas.mpl_connect('button_press_event', self.on_click)
+#     self.fig.canvas.mpl_connect('key_press_event', self.on_key_press)
+#     self.fig.canvas.mpl_connect('key_release_event', self.on_key_release)
+#     plt.tight_layout()
+#     plt.show()

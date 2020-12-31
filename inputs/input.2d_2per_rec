@@ -4,8 +4,8 @@
 
 <node_configuration>
 
-  sizex         = 2              # number of cpus in x direction
-  sizey         = 2              # number of cpus in y direction
+  sizex         = 1              # number of cpus in x direction
+  sizey         = 1              # number of cpus in y direction
   sizez         = 1              # number of cpus in z direction
 
 <time>

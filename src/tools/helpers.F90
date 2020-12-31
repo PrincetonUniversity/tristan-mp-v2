@@ -335,10 +335,10 @@ contains
     end do
   end subroutine computeDensity
 
-  subroutine computeEnergy(s, reset, ds)
+  subroutine computeMomentum(s, component, reset, ds)
     ! DEP_PRT [particle-dependent]
     implicit none
-    integer, intent(in)                   :: s
+    integer, intent(in)                   :: s, component
     logical, intent(in)                   :: reset
     integer, optional, intent(in)         :: ds
     integer                               :: p, ti, tj, tk
@@ -348,7 +348,7 @@ contains
     integer :: i1, i2, j1, j2, k1, k2, ds_
     integer :: pow
     logical :: massive
-    real    :: energy
+    real    :: comp
     real    :: contrib
 
     if (.not. present(ds)) then
@@ -365,11 +365,10 @@ contains
       pow = 3
     #endif
 
-    if (species(s)%m_sp .eq. 0) then
-      massive = .false.
+    massive = (species(s)%m_sp .ne. 0)
+    if (.not. massive) then
       contrib = 1.0 / (2.0 * REAL(ds_) + 1.0)**pow
     else
-      massive = .true.
       contrib = species(s)%m_sp / (2.0 * REAL(ds_) + 1.0)**pow
     end if
 
@@ -388,10 +387,18 @@ contains
           pt_w => species(s)%prtl_tile(ti, tj, tk)%w
           do p = 1, species(s)%prtl_tile(ti, tj, tk)%npart_sp
             i = pt_xi(p); j = pt_yi(p); k = pt_zi(p)
-            if (massive) then
-              energy = sqrt(1.0 + pt_u(p)**2 + pt_v(p)**2 + pt_w(p)**2)
-            else
-              energy = sqrt(pt_u(p)**2 + pt_v(p)**2 + pt_w(p)**2)
+            if (component .eq. 0) then
+              if (massive) then
+                comp = sqrt(1.0 + pt_u(p)**2 + pt_v(p)**2 + pt_w(p)**2)
+              else
+                comp = sqrt(pt_u(p)**2 + pt_v(p)**2 + pt_w(p)**2)
+              end if
+            else if (component .eq. 1) then
+              comp = pt_u(p)
+            else if (component .eq. 2) then
+              comp = pt_v(p)
+            else if (component .eq. 3) then
+              comp = pt_w(p)
             end if
 
             i1 = 0; i2 = 0
@@ -413,7 +420,7 @@ contains
             do k = k1, k2
               do j = j1, j2
                 do i = i1, i2
-                  lg_arr(i, j, k) = lg_arr(i, j, k) + energy * pt_wei(p) * contrib
+                  lg_arr(i, j, k) = lg_arr(i, j, k) + comp * pt_wei(p) * contrib
                 end do
               end do
             end do
@@ -425,7 +432,77 @@ contains
         end do
       end do
     end do
-  end subroutine computeEnergy
+  end subroutine computeMomentum
+
+  subroutine computeNpart(s, reset, ds)
+    ! DEP_PRT [particle-dependent]
+    implicit none
+    integer, intent(in)                   :: s
+    logical, intent(in)                   :: reset
+    integer, optional, intent(in)         :: ds
+    integer                               :: p, ti, tj, tk
+    integer(kind=2), pointer, contiguous  :: pt_xi(:), pt_yi(:), pt_zi(:)
+    real, pointer, contiguous             :: pt_u(:), pt_v(:), pt_w(:), pt_wei(:)
+    integer(kind=2) :: i, j, k
+    integer :: i1, i2, j1, j2, k1, k2, ds_
+    integer :: pow
+    real    :: contrib
+
+    if (.not. present(ds)) then
+      ds_ = 2
+    else
+      ds_ = ds
+    end if
+
+    #ifdef oneD
+      pow = 1
+    #elif twoD
+      pow = 2
+    #elif threeD
+      pow = 3
+    #endif
+
+    contrib = 1.0 / (2.0 * REAL(ds_) + 1.0)**pow
+
+    if (reset) then
+      lg_arr(:,:,:) = 0
+    end if
+    do ti = 1, species(s)%tile_nx
+      do tj = 1, species(s)%tile_ny
+        do tk = 1, species(s)%tile_nz
+          pt_xi => species(s)%prtl_tile(ti, tj, tk)%xi
+          pt_yi => species(s)%prtl_tile(ti, tj, tk)%yi
+          pt_zi => species(s)%prtl_tile(ti, tj, tk)%zi
+          do p = 1, species(s)%prtl_tile(ti, tj, tk)%npart_sp
+            i = pt_xi(p); j = pt_yi(p); k = pt_zi(p)
+            i1 = 0; i2 = 0
+            j1 = 0; j2 = 0
+            k1 = 0; k2 = 0
+            #if defined(oneD) || defined (twoD) || defined (threeD)
+              i1 = max(i - ds_, -NGHOST)
+              i2 = min(i + ds_, this_meshblock%ptr%sx + NGHOST - 1)
+            #endif
+            #if defined (twoD) || defined (threeD)
+              j1 = max(j - ds_, -NGHOST)
+              j2 = min(j + ds_, this_meshblock%ptr%sy + NGHOST - 1)
+            #endif
+            #if defined (threeD)
+              k1 = max(k - ds_, -NGHOST)
+              k2 = min(k + ds_, this_meshblock%ptr%sz + NGHOST - 1)
+            #endif
+            do k = k1, k2
+              do j = j1, j2
+                do i = i1, i2
+                  lg_arr(i, j, k) = lg_arr(i, j, k) + contrib
+                end do
+              end do
+            end do
+          end do
+          pt_xi => null(); pt_yi => null(); pt_zi => null()
+        end do
+      end do
+    end do
+  end subroutine computeNpart
 
   subroutine interpFromEdges(dx, dy, dz, i, j, k, &
                            & fx, fy, fz, &
@@ -697,4 +774,53 @@ contains
     #endif
   end subroutine interpFromFaces
 
+  subroutine depositCurrentsFromSingleParticle(s, tile, p, x1, y1, z1,&
+                                                         & x2, y2, z2, multiplier)
+    implicit none
+    type(particle_tile), intent(in) :: tile
+    integer, intent(in)       :: s, p
+    real, intent(in)          :: x1, y1, z1, x2, y2, z2
+    real, optional, intent(in):: multiplier
+    real                      :: xr, yr, zr
+    integer(kind=2)           :: i1, i2, j1, j2, k1, k2
+    integer(kind=2)           :: i1p1, i2p1, j1p1, j2p1, k1p1, k2p1
+    real                      :: Wx1, Wy1, Wz1, Wx2, Wy2, Wz2
+    real                      :: onemWx1, onemWy1, onemWz1, onemWx2, onemWy2, onemWz2
+    real                      :: Fx1, Fy1, Fz1, Fx2, Fy2, Fz2
+    real                      :: weighted_charge
+
+    if (present(multiplier)) then
+      weighted_charge = multiplier * tile%weight(p) * species(s)%ch_sp * unit_ch / B_norm
+    else
+      weighted_charge = tile%weight(p) * species(s)%ch_sp * unit_ch / B_norm
+    end if
+
+    #ifdef oneD
+      i1 = FLOOR(x1);   i2 = FLOOR(x2)
+      j1 = 0;           j2 = 0
+      k1 = 0;           k2 = 0
+      i1p1 = i1 + 1_2;  i2p1 = i2 + 1_2
+    #elif twoD
+      i1 = FLOOR(x1);  i2 = FLOOR(x2)
+      j1 = FLOOR(y1);  j2 = FLOOR(y2)
+      k1 = 0;          k2 = 0
+      i1p1 = i1 + 1_2;  i2p1 = i2 + 1_2
+      j1p1 = j1 + 1_2;  j2p1 = j2 + 1_2
+    #elif threeD
+      i1 = FLOOR(x1);  i2 = FLOOR(x2)
+      j1 = FLOOR(y1);  j2 = FLOOR(y2)
+      k1 = FLOOR(z1);  k2 = FLOOR(z2)
+      i1p1 = i1 + 1_2;  i2p1 = i2 + 1_2
+      j1p1 = j1 + 1_2;  j2p1 = j2 + 1_2
+      k1p1 = k1 + 1_2;  k2p1 = k2 + 1_2
+    #endif
+
+    ! this "function" takes
+    ! ... the start and end coordinates: `x1`, `x2`, `y1`, `y2`, `z1`, `z2` ...
+    ! ... the start and end cells: `i1`, `i2`, `j1`, `j2`, `k1`, `k2` ...
+    ! ... the start and end cells + 1: `i1p1`, `i2p1` etc ...
+    ! ... the weighted_chargeed charge: `weighted_charge = weight * charge_sp * unit_charge / Bnorm`
+    ! ... and deposits proper currents to corresponding components
+    include "zigzag_deposit.F"
+  end subroutine depositCurrentsFromSingleParticle
 end module m_helpers

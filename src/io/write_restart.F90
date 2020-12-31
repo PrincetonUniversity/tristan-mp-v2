@@ -5,24 +5,36 @@ module m_writerestart
     use ifport, only : makedirqq
   #endif
   use m_globalnamespace
+  use m_outputnamespace, only: tot_output_index, slice_index
   use m_aux
   use m_errors
   use m_domain
   use m_particles
   use m_fields
+  use m_readinput, only: getInput
   use m_helpers
   implicit none
 
   ! # of cpu simultaneously accessing filesystem
-  integer                 :: rst_cpu_group = 50
+  integer                 :: rst_cpu_group
   logical                 :: rst_simulation = .false.
   logical                 :: rst_separate, rst_enable = .false.
   integer                 :: rst_interval, rst_start
-  character(len=STR_MAX)  :: restart_from = 'restart/step_00000'
 
   private :: writeFldRestart
 
 contains
+  subroutine initializeRestart()
+    implicit none
+    call getInput('restart', 'do_restart', rst_simulation, .false.)
+    call getInput('restart', 'enable', rst_enable, .false.)
+    call getInput('restart', 'start', rst_start, 0)
+    call getInput('restart', 'interval', rst_interval, 10000)
+    call getInput('restart', 'rewrite', rst_separate, .false.)
+    call getInput('restart', 'cpu_group', rst_cpu_group, 50)
+    rst_separate = (.not. rst_separate)
+  end subroutine initializeRestart
+
   subroutine writeRestart(timestep)
     implicit none
     integer, intent(in)               :: timestep
@@ -37,7 +49,6 @@ contains
     #ifdef MPI
       integer                         :: istat(MPI_STATUS_SIZE)
     #endif
-
 
     ! determine the directory to write
     if (rst_separate) then
@@ -64,13 +75,11 @@ contains
       do while (rnk .lt. mpi_size)
         do rnk_cnt = 0, rst_cpu_group - 1
           if (rnk + rnk_cnt .ge. mpi_size) cycle
-          call MPI_SEND(dummy, 1, MPI_INTEGER, rnk + rnk_cnt,&
-                      & rnk + rnk_cnt + 1, MPI_COMM_WORLD, ierr)
+          call MPI_SEND(dummy, 1, MPI_INTEGER, rnk + rnk_cnt, 1, MPI_COMM_WORLD, ierr)
         end do
         do rnk_cnt = 0, rst_cpu_group - 1
           if (rnk + rnk_cnt .ge. mpi_size) cycle
-          call MPI_RECV(dummy, 1, MPI_INTEGER, rnk + rnk_cnt,&
-                      & rnk + rnk_cnt + 1, MPI_COMM_WORLD, istat, ierr)
+          call MPI_RECV(dummy, 1, MPI_INTEGER, rnk + rnk_cnt, 2, MPI_COMM_WORLD, istat, ierr)
           recv_count = recv_count + 1
         end do
         rnk = rnk + rst_cpu_group
@@ -78,11 +87,11 @@ contains
       call writeFldRestart(timestep, rst_dir)
       call writePrtlRestart(timestep, rst_dir)
     else
-      call MPI_RECV(dummy, 1, MPI_INTEGER, 0, mpi_rank + 1, MPI_COMM_WORLD, istat, ierr)
+      call MPI_RECV(dummy, 1, MPI_INTEGER, 0, 1, MPI_COMM_WORLD, istat, ierr)
       call writeFldRestart(timestep, rst_dir)
       call writePrtlRestart(timestep, rst_dir)
       dummy(1) = 2
-      call MPI_SEND(dummy, 1, MPI_INTEGER, 0, mpi_rank + 1, MPI_COMM_WORLD, ierr)
+      call MPI_SEND(dummy, 1, MPI_INTEGER, 0, 2, MPI_COMM_WORLD, ierr)
     end if
 
     #ifdef DEBUG
@@ -109,7 +118,7 @@ contains
 
     filename = trim(rst_dir) // '/flds.rst.' // trim(mpichar)
     open(UNIT_restart_fld, file=filename, status="replace", form="unformatted")
-    write(UNIT_restart_fld) timestep, dseed, output_index, slice_index
+    write(UNIT_restart_fld) timestep, dseed, tot_output_index, slice_index
     write(UNIT_restart_fld) ex, ey, ez, bx, by, bz
     write(UNIT_restart_fld) CC, ppc0, c_omp, sigma
     close(UNIT_restart_fld)

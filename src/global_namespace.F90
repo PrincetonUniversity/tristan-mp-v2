@@ -30,17 +30,16 @@ module m_globalnamespace
   real :: ppc0, c_omp, sigma, B_norm, unit_ch
 
   ! simulation parameters
-  integer                :: start_timestep = 0, final_timestep, output_index = 0, slice_index = 0
+  integer                :: start_timestep = 0, final_timestep
   logical                :: resize_tiles
-  integer                :: min_tile_nprt = 100
+  integer                :: min_tile_nprt = 100, max_buffsize = 100
   character(len=STR_MAX) :: input_file_name = 'input',&
                           & output_dir_name = 'output',&
+                          & slice_dir_name = 'slices',&
                           & restart_dir_name = 'restart',&
-                          & slice_dir_name = 'slices'
+                          & restart_from = 'restart/step_00000'
 
-  integer       :: nfilter, spec_num
-  real          :: spec_min, spec_max
-  logical       :: spec_log_bins
+  integer       :: nfilter
 
   ! mpi variables
   integer       :: mpi_rank, mpi_size, mpi_statsize

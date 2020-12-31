@@ -23,7 +23,7 @@ unit_choices = [choice[len(unit_directory):-4] for choice in unit_choices]
 parser.add_argument('-perseus',
                     action='store_true',
                     default=False,
-                    help='Configure for `Perseus` cluster.')
+                    help='configure for `Perseus` cluster.')
 
 parser.add_argument('-intel',
                     action='store_true',
@@ -33,6 +33,10 @@ parser.add_argument('-hdf5',
                     action='store_true',
                     default=False,
                     help='enable HDF5 & use h5pfc compiler')
+parser.add_argument('-serial',
+                    action='store_true',
+                    default=False,
+                    help='enable serial output')
 
 vec_group = parser.add_mutually_exclusive_group(required=False)
 vec_group.add_argument('-avx2',
@@ -56,7 +60,7 @@ mpi_group.add_argument('-mpi',
                        help='enable mpi')
 mpi_group.add_argument('-mpi08',
                        action='store_true',
-                       default=True,
+                       default=False,
                        help='enable mpi_f08')
 
 # user file
@@ -90,6 +94,11 @@ parser.add_argument('-debug',
                     action='store_true',
                     default=False,
                     help='enable DEBUG flag')
+
+parser.add_argument('-vay',
+                    action='store_true',
+                    default=False,
+                    help='enable Vay pusher')
 
 parser.add_argument('-payload',
                     action='store_true',
@@ -147,8 +156,7 @@ specific_cluster = False
 if args['perseus']:
   specific_cluster = True
   args['intel'] = True
-  args['mpi08'] = True
-  args['mpi'] = False
+  args['mpi'] = True
   args['ifport'] = True
   args['avx2'] = True
 
@@ -163,6 +171,9 @@ else:
     makefile_options['COMPILER_COMMAND'] += 'mpif90 '
 if args['ifport']:
   makefile_options['PREPROCESSOR_FLAGS'] += '-DIFPORT '
+
+if args['serial']:
+  makefile_options['PREPROCESSOR_FLAGS'] += '-DSERIALOUTPUT '
 
 # mpi version
 if args['mpi']:
@@ -214,6 +225,8 @@ if args['slb']:
   args['alb'] = False
   makefile_options['PREPROCESSOR_FLAGS'] += '-DSLB '
 
+if args['vay']:
+  makefile_options['PREPROCESSOR_FLAGS'] += '-DVAY '
 if args['payload']:
   makefile_options['PREPROCESSOR_FLAGS'] += '-DPRTLPAYLOADS '
 
@@ -245,6 +258,7 @@ print('  Dim:                     ' + ('1D' if args['1d'] else ('2D' if args['2d
 print('  # of ghost zones:        ' + str(args['nghosts']))
 print('  Load balancing:          ' + ('adaptive' if args['alb'] else ('static' if args['slb'] else 'OFF')))
 print('  Particle downsampling:   ' + ('ON' if args['dwn'] else 'OFF'))
+print('  Particle pusher:         ' + ('Vay' if args['vay'] else 'Boris'))
 print('  Particle payloads:       ' + ('ON' if args['payload'] else 'OFF'))
 
 print('PHYSICS ......................................................................')
@@ -258,7 +272,7 @@ print('  Compiler:                ' + ('intel' if args['intel'] else 'gcc') +
                                         (' [avx512]' if args['avx512'] else '')
                                       ))
 print('  Debug mode:              ' + ('ON' if args['debug'] else 'OFF'))
-print('  Output:                  ' + ('HDF5' if args['hdf5'] else 'N/A'))
+print('  Output:                  ' + (('HDF5' + (' (serial)' if args['serial'] else ' (parallel)')) if args['hdf5'] else 'N/A'))
 print('  MPI version:             ' + ('old' if not args['mpi08'] else 'MPI_08'))
 print('  `IFPORT` mkdir:          ' + ('ON' if args['ifport'] else 'OFF'))
 

@@ -4,8 +4,6 @@ module m_readinput
   use m_globalnamespace
   use m_aux
   use m_errors
-  use m_writeoutput
-  use m_writerestart
   implicit none
 
   interface strToNum
@@ -26,8 +24,7 @@ module m_readinput
   !--- PRIVATE functions -----------------------------------------!
   private :: strToInt4, strToInt8, strToReal4, strToReal8,&
            & getInt4Input, getInt8Input, getReal4Input,&
-           & getReal8Input, getLogicalInput, parseInput,&
-           & simplifyBlockname
+           & getReal8Input, getLogicalInput, parseInput
   !...............................................................!
 contains
   ! read input/output filename/directory
@@ -53,7 +50,6 @@ contains
         case ('-R', '--RST')
           call get_command_argument(i + 1, arg1)
           restart_from = trim(arg1)
-          rst_simulation = .true.
       end select
     end do
   end subroutine readCommandlineArgs
@@ -106,33 +102,37 @@ contains
     end if
   end function parseInput
 
-  ! changing blockname to 3 characters
-  function simplifyBlockname(blockname) result(bname)
-    implicit none
-    character(len=*), intent(in)  :: blockname
-    character(len=3)              :: bname
-    if (trim(blockname) .eq. 'node_configuration') then
-      bname = 'cpu'
-    else if (trim(blockname) .eq. 'grid') then
-      bname = 'grd'
-    else if (trim(blockname) .eq. 'restart') then
-      bname = 'rst'
-    else if (trim(blockname) .eq. 'adaptive_load_balancing') then
-      bname = 'alb'
-    else if (trim(blockname) .eq. 'static_load_balancing') then
-      bname = 'slb'
-    else if (trim(blockname) .eq. 'plasma') then
-      bname = 'pls'
-    else if (trim(blockname) .eq. 'particles') then
-      bname = 'prt'
-    else if (trim(blockname) .eq. 'downsampling') then
-      bname = 'dwn'
-    else if (trim(blockname) .eq. 'problem') then
-      bname = 'prb'
-    else
-      bname = blockname(1:3)
-    end if
-  end function simplifyBlockname
+  ! ! changing blockname to 3 characters
+  ! function simplifyBlockname(blockname) result(bname)
+  !   implicit none
+  !   character(len=*), intent(in)  :: blockname
+  !   character(len=3)              :: bname
+  !   if (trim(blockname) .eq. 'node_configuration') then
+  !     bname = 'cpu'
+  !   else if (trim(blockname) .eq. 'grid') then
+  !     bname = 'grd'
+  !   else if (trim(blockname) .eq. 'restart') then
+  !     bname = 'rst'
+  !   else if (trim(blockname) .eq. 'adaptive_load_balancing') then
+  !     bname = 'alb'
+  !   else if (trim(blockname) .eq. 'static_load_balancing') then
+  !     bname = 'slb'
+  !   else if (trim(blockname) .eq. 'plasma') then
+  !     bname = 'pls'
+  !   else if (trim(blockname) .eq. 'particles') then
+  !     bname = 'prt'
+  !   else if (trim(blockname) .eq. 'downsampling') then
+  !     bname = 'dwn'
+  !   else if (trim(blockname) .eq. 'bw_pp') then
+  !     bname = 'bwp'
+  !   else if (trim(blockname) .eq. 'compton') then
+  !     bname = 'cmp'
+  !   else if (trim(blockname) .eq. 'problem') then
+  !     bname = 'prb'
+  !   else
+  !     bname = blockname(1:3)
+  !   end if
+  ! end function simplifyBlockname
 
   function isUniqueParam(blockname, varname) result(unique)
     implicit none
@@ -140,7 +140,7 @@ contains
     logical                       :: unique
     integer                       :: n
     do n = 1, sim_params%count
-      if ((trim(simplifyBlockname(blockname)) .eq. trim(sim_params%param_group(n)%str)) .and.&
+      if ((trim(blockname) .eq. trim(sim_params%param_group(n)%str)) .and.&
         & (trim(varname) .eq. trim(sim_params%param_name(n)%str))) then
         unique = .false.
         return
@@ -185,7 +185,7 @@ contains
     if (isUniqueParam(blockname, varname)) then
       sim_params%count = sim_params%count + 1
       sim_params%param_type(sim_params%count) = 1
-      sim_params%param_group(sim_params%count)%str = simplifyBlockname(blockname)
+      sim_params%param_group(sim_params%count)%str = blockname
       sim_params%param_name(sim_params%count)%str = varname
       sim_params%param_value(sim_params%count)%value_int = val
     end if
@@ -235,7 +235,7 @@ contains
     if (isUniqueParam(blockname, varname)) then
       sim_params%count = sim_params%count + 1
       sim_params%param_type(sim_params%count) = 1
-      sim_params%param_group(sim_params%count)%str = simplifyBlockname(blockname)
+      sim_params%param_group(sim_params%count)%str = blockname
       sim_params%param_name(sim_params%count)%str = varname
       sim_params%param_value(sim_params%count)%value_int = val
     end if
@@ -285,7 +285,7 @@ contains
     if (isUniqueParam(blockname, varname)) then
       sim_params%count = sim_params%count + 1
       sim_params%param_type(sim_params%count) = 2
-      sim_params%param_group(sim_params%count)%str = simplifyBlockname(blockname)
+      sim_params%param_group(sim_params%count)%str = blockname
       sim_params%param_name(sim_params%count)%str = varname
       sim_params%param_value(sim_params%count)%value_real = val
     end if
@@ -335,7 +335,7 @@ contains
     if (isUniqueParam(blockname, varname)) then
       sim_params%count = sim_params%count + 1
       sim_params%param_type(sim_params%count) = 2
-      sim_params%param_group(sim_params%count)%str = simplifyBlockname(blockname)
+      sim_params%param_group(sim_params%count)%str = blockname
       sim_params%param_name(sim_params%count)%str = varname
       sim_params%param_value(sim_params%count)%value_real = val
     end if
@@ -392,7 +392,7 @@ contains
     if (isUniqueParam(blockname, varname)) then
       sim_params%count = sim_params%count + 1
       sim_params%param_type(sim_params%count) = 3
-      sim_params%param_group(sim_params%count)%str = simplifyBlockname(blockname)
+      sim_params%param_group(sim_params%count)%str = blockname
       sim_params%param_name(sim_params%count)%str = varname
       sim_params%param_value(sim_params%count)%value_bool = val
     end if

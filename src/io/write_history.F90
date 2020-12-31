@@ -2,21 +2,27 @@
 
 module m_writehistory
   use m_globalnamespace
+  use m_outputnamespace, only: hst_enable, hst_human_readable, hst_interval
   use m_aux
   use m_errors
   use m_domain
   use m_particles
   use m_fields
+  use m_readinput, only: getInput
   use m_helpers
   implicit none
-
-  logical :: hst_enable, hst_human_readable = .false.
-  integer :: hst_interval
 
   real, private    :: Etot_0
   logical, private :: first_step = .true.
 
 contains
+  subroutine initializeHistory()
+    implicit none
+    call getInput('output', 'hst_enable', hst_enable, .false.)
+    call getInput('output', 'hst_interval', hst_interval, 1)
+    call getInput('output', 'hst_readable', hst_human_readable, .false.)
+  end subroutine initializeHistory
+
   ! FIX2 total E^2, total B^2, total E_kin
   ! time, total mass, momenta, kinetic energies in three directions, total energy, and magnetic energies in three directions
   subroutine writeHistory(step)

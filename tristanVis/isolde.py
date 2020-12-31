@@ -4,27 +4,78 @@ import h5py
 import os
 
 def getParticles(fname):
-    with h5py.File(fname, 'r') as file:
-        keys = list(file.keys())
-        species = np.unique([int(key.split('_')[1]) for key in keys])
-        nspec = len(species)
-        variables = np.unique([key.split('_')[0] for key in keys])
-        nvars = len(variables)
-        data = {}
-        for s in range(nspec):
-            data[str(s + 1)] = {}
-            for i in range(nvars):
-                (data[str(s + 1)])[variables[i]] = file[variables[i] + '_' + str(s + 1)][:]
-    return data
+  with h5py.File(fname, 'r') as file:
+    keys = list(file.keys())
+    species = np.unique([int(key.split('_')[1]) for key in keys])
+    nspec = len(species)
+    variables = np.unique([key.split('_')[0] for key in keys])
+    nvars = len(variables)
+    data = {}
+    for s in range(nspec):
+      data[str(s + 1)] = {}
+      for i in range(nvars):
+        (data[str(s + 1)])[variables[i]] = file[variables[i] + '_' + str(s + 1)][:]
+  return data
 
 def getFields(fname, nodes = False):
-    # hdf5 file
-    with h5py.File(fname, 'r') as file:
-        keys = list(file.keys())
-        data = {}
-        for key in keys:
-            data[key] = file[key][:]
-    return data
+  # hdf5 file
+  with h5py.File(fname, 'r') as file:
+    keys = list(file.keys())
+    data = {}
+    for key in keys:
+      data[key] = file[key][:]
+  return data
+
+def getParameters(fname):
+  with h5py.File(fname, 'r') as file:
+    keys = list(file.keys())
+    params = {}
+    for key in keys:
+      params[key] = file[key][:][0]
+  return params
+
+def getSlice(output, proj, step):
+  if (output[-1] != '/'):
+    output += '/'
+  proj, shift = proj.split('=')
+  return getFields(output + '/slice' + proj.upper() + '=' + '%05d' % int(shift) + '.%05d' % step)
+
+def convertToXarray(fields,
+                    coordinateTransformation = {'x': lambda f: f,
+                                                'y': lambda f: f,
+                                                'z': lambda f: f},
+                    additionalVariables = {}):
+  import xarray as xr
+  import numpy as np
+  np.seterr(divide='ignore', invalid='ignore')
+  for k in fields.keys():
+    fields[k] = np.squeeze(fields[k])
+  xr_data = xr.Dataset()
+  dimension = len(fields[list(fields.keys())[0]].shape)
+  if dimension == 1:
+    xr_axes = np.array(list('xyz'))[[(np.min(fields[p+p]) != np.max(fields[p+p])) for p in list('xyz')]]
+    if (len(xr_axes) != 1):
+      raise ValueError("Incorrect `xr_axes`.")
+    x1 = xr_axes
+    xr_data.coords[x1] = ((x1), coordinateTransformation[x1](fields[x1*2][:]))
+  elif dimension == 2:
+    xr_axes = np.array(list('xyz'))[[(np.min(fields[p+p]) != np.max(fields[p+p])) for p in list('xyz')]]
+    if (len(xr_axes) != 2):
+      raise ValueError("Incorrect `xr_axes`.")
+    x1, x2 = xr_axes
+    xr_data.coords[x1] = ((x1), coordinateTransformation[x1](fields[x1*2][0,:]))
+    xr_data.coords[x2] = ((x2), coordinateTransformation[x2](fields[x2*2][:,0]))
+  elif dimension == 3:
+    xr_axes = list('xyz')
+    x1, x2, x3 = xr_axes
+    xr_data.coords[x1] = ((x1), coordinateTransformation[x1](fields[x1*2][0,0,:]))
+    xr_data.coords[x2] = ((x2), coordinateTransformation[x2](fields[x2*2][0,:,0]))
+    xr_data.coords[x3] = ((x3), coordinateTransformation[x3](fields[x3*2][:,0,0]))
+  for k in fields.keys():
+    xr_data[k] = (xr_axes, fields[k][:])
+  for k in additionalVariables.keys():
+    xr_data[k] = (xr_axes, additionalVariables[k](xr_data)[:])
+  return xr_data
 
 # usage example for 2D uniform grid:
 # ```
@@ -37,18 +88,83 @@ def getFields(fname, nodes = False):
 #   plt.pcolor(x_, y_, ex_) # <- 2D plot
 # ```
 
-def getSpectra(fname):
+class Spectra:
+  def __init__(self, raw, radiation = False, gca = False):
+    self.__radiation = radiation
+    self.__gca = gca
+    self.initialize(raw)
+  def findSpecname(self, s, onlyGCA, onlyBoris):
+    if (not self.__gca and (onlyGCA or onlyBoris)):
+      raise ValueError('GCA set to `False` in `Spectra` class.')
+    elif onlyGCA and onlyBoris:
+      raise ValueError('At least one of `onlyGCA` and `onlyBoris` have to be `False`.')
+    if (not onlyGCA) and (not onlyBoris):
+      specname = 'n'
+    elif (onlyGCA):
+      specname = 'ngca'
+    elif (onlyBoris):
+      specname = 'nbor'
+    return specname + str(s)
+  def getBin(self, i, j, k):
+    x0 = self.xbins[i]; y0 = self.ybins[j]; z0 = self.zbins[k]
+    return (x0, y0, z0)
+  def getTotal(self, s):
+    ss = 'n' + str(s)
+    return np.sum(self.__data[ss], axis=(0, 1, 2))
+  def getBySpatialBin(self, s, ijk, onlyGCA = False, onlyBoris = False):
+    i, j, k = ijk
+    specname = self.findSpecname(s, onlyGCA, onlyBoris)
+    xyz0 = self.getBin(i, j, k)
+    if (len(self.xbins) == 1):
+      sx = 1
+    else:
+      sx = self.xbins[1] - self.xbins[0]
+    if (len(self.ybins) == 1):
+      sy = 1
+    else:
+      sy = self.ybins[1] - self.ybins[0]
+    if (len(self.zbins) == 1):
+      sz = 1
+    else:
+      sz = self.zbins[1] - self.zbins[0]
+    sxyz = (sx, sy, sz)
+    return (xyz0, sxyz, self.__data[specname][i, j, k])
+  def getByCoordinate(self, s, xyz, onlyGCA = False, onlyBoris = False):
+    x, y, z = xyz
+    ijk = [-1, -1, -1]
+    bins = [self.xbins, self.ybins, self.zbins]
+    for ind, (bn, crd) in enumerate(zip(bins, xyz)):
+      for o in range(len(bn)):
+        if bn[o] > crd:
+          ijk[ind] = o - 1
+          break
+    return self.getBySpatialBin(s, ijk, onlyGCA, onlyBoris)
+  def initialize(self, raw):
+    import re
+    self.__data = {}
+    self.xbins = raw['xbins'][:]
+    self.ybins = raw['ybins'][:]
+    self.zbins = raw['zbins'][:]
+    self.ebins = raw['ebins'][:]
+    keylist = list(raw.keys())
+    allspecies = ([int(re.findall("^n(\d+)", key)[0]) for key in keylist if re.match("^n\d+", key)])
+    for s in allspecies:
+      self.__data['n' + str(s)] = np.transpose(raw['n' + str(s)])
+    if self.__radiation:
+      self.rbins = raw['rbins'][:]
+      radspecies = ([int(re.findall("^nr(\d+)", key)[0]) for key in keylist if re.match("^nr\d+", key)])
+      for rs in radspecies:
+        self.__data['nr' + str(rs)] = raw['nr' + str(rs)][:]
+    if self.__gca:
+      for s in allspecies:
+        self.__data['nbor' + str(s)] = np.transpose(raw['nbor' + str(s)])
+        self.__data['ngca' + str(s)] = np.transpose(raw['ngca' + str(s)])
+
+def getSpectra(fname, radiation = False, gca = False):
   with h5py.File(fname, 'r') as file:
-    keys = list(file.keys())
-    species = np.unique([int(''.join(filter(str.isdigit, key))) for key in keys])
-    types = np.unique([''.join([i for i in key if not i.isdigit()]) for key in keys])
-    data = {}
-    for sp in species:
-      data[str(sp)] = {}
-      for tp in types:
-        (data[str(sp)])[tp] = file[tp + str(sp)][:]
-    return data
-  
+    spec = Spectra(file, radiation, gca)
+  return spec
+
 def getDomains(fname):
   with h5py.File(fname, 'r') as file:
     data = {}
@@ -65,7 +181,9 @@ def parseReport(fname, nsteps = None, skip = 1, skip_every = 1e6):
         routine = line.split()[0]
       except:
         continue
+      writing_particles = False
       if (routine == 'species'):
+        writing_particles = True
         routine = line[:15].strip()
       if routine[-1] == ':':
         routine = routine[:-1]
@@ -73,21 +191,33 @@ def parseReport(fname, nsteps = None, skip = 1, skip_every = 1e6):
         line1 = line.split()
         if (isfirst):
           data[routine] = {}
-          data[routine]['dt'] = np.array([])
-          data[routine]['min'] = np.array([])
-          data[routine]['max'] = np.array([])
+          if not writing_particles:
+            data[routine]['dt'] = np.array([])
+            data[routine]['min'] = np.array([])
+            data[routine]['max'] = np.array([])
+          else:
+            data[routine]['average'] = np.array([])
+            data[routine]['min'] = np.array([])
+            data[routine]['max'] = np.array([])
+            data[routine]['total'] = np.array([])
         if len(line1) < 5:
           line1 = line1[-3:]
         else:
-          line1 = line1[-4:-1]
+          line1 = line1[-4:]
         nums = [float(x.strip()) for x in line1]
         if (len(nums) < 3):
           print (nums, line)
           raise ValueError('len(nums) < 3')
         else:
-          data[routine]['dt'] = np.append(data[routine]['dt'], [nums[0]])
-          data[routine]['min'] = np.append(data[routine]['min'], [nums[1]])
-          data[routine]['max'] = np.append(data[routine]['max'], [nums[2]])
+          if not writing_particles:
+            data[routine]['dt'] = np.append(data[routine]['dt'], [nums[0]])
+            data[routine]['min'] = np.append(data[routine]['min'], [nums[1]])
+            data[routine]['max'] = np.append(data[routine]['max'], [nums[2]])
+          else:
+            data[routine]['average'] = np.append(data[routine]['average'], [nums[0]])
+            data[routine]['min'] = np.append(data[routine]['min'], [nums[1]])
+            data[routine]['max'] = np.append(data[routine]['max'], [nums[2]])
+            data[routine]['total'] = np.append(data[routine]['total'], [nums[3]])
   data = {}
   data['t'] = np.array([])
   with open(fname, 'r') as file:
@@ -109,136 +239,34 @@ def parseReport(fname, nsteps = None, skip = 1, skip_every = 1e6):
       ni += 1
   return data
 
-def parseHistory(fname, nsteps = None):
-  keys = []
-  if (not nsteps):
-    nsteps = int(1e6)
-  def parseBlock(block, data, isfirst = False):
-    if (isfirst):
-      block = block.split('\n')[2:-2]
-      for subblock in block:
-        for word in subblock.split():
-          if word[0] == '[' and word[-1] == ']':
-            if ('%' not in word): # sanity check
-              keys.append(word[1:-1])
-              data[word[1:-1]] = np.array([])
-    else:
-      block = block.split('\n')[2:-2]
-      k = 0
-      for subblock in block:
-        for word in subblock.split():
-          if ('%' not in word) and ('|' not in word) and k < len(keys):
-            data[keys[k]] = np.append(data[keys[k]], np.float(word))
-            k = k + 1
-  data = {}
-  with open(fname, 'r') as file:
-    isfirst = True
-    ni = 0
-    while ni <= nsteps:
-      block = ""
-      for i in range(8):
-        line = file.readline()
-        if line == '':
-          ni = nsteps + 1
+def parseHistory(fname):
+  from itertools import groupby
+  import re
+  def make_grouper():
+    counter = 0
+    def key(line):
+      nonlocal counter
+      if line.startswith('===='):
+        counter += 1
+      return counter
+    return key
+  with open(fname, 'r') as f:
+    data = {}
+    for k, group in groupby(f, key=make_grouper()):
+      fasta_section = ''.join(group)
+      block = fasta_section.split("\n", 1)[1]
+      if (k == 1):
+        template = block
+        template_keys = np.array(re.findall('\[.+?\]', template))
+        mask = (template_keys != '[% Etot]')
+        template_keys = np.array(list(map(lambda x: x[1:-1], template_keys[mask])))
+        data = {key: np.array([]) for key in template_keys}
+      else:
+        block_values = np.array(re.findall('-?\ *[0-9]+\.?[0-9]*(?:[Ee]\ *[-|+]?\ *[0-9]+)?', block))
+        if (len(block) == 0):
           break
-        else:
-          block += line
-      parseBlock(block, data, isfirst)
-      isfirst = False
-      ni = ni + 1
+        block_values = np.array(list(map(np.float, block_values[mask])))
+        pairs = {key: v for key, v in zip(template_keys, block_values)}
+        for key in template_keys:
+          data[key] = np.append(data[key], pairs[key])
   return data
-
-# easy plotting functions
-def plot2DField(ax, x, y, field, rotate=False,
-                title='field', cmap='jet',
-                vmin=None, vmax=None,
-                scale='lin', region=[-np.inf, np.inf, -np.inf, np.inf],
-                cbar = '2%', cbar_pad=0.05,
-                **kwargs):
-    import matplotlib.pyplot as plt
-    import matplotlib as mpl
-    from mpl_toolkits.axes_grid1 import make_axes_locatable
-    if rotate:
-      field = np.rot90(field)
-      x_dummy = 1.0 * np.array(x)
-      x = 1.0 * np.array(y)
-      y = 1.0 * np.array(x_dummy)
-    xmin = x[x > region[0]].min()
-    xmax = x[x <= region[1]].max()
-    ymin = y[y > region[2]].min()
-    ymax = y[y <= region[3]].max()
-    ax.set_aspect(1)
-    ax.set_xlim(xmin, xmax)
-    ax.set_ylim(ymin, ymax)
-    if not vmin:
-        vmin = field.min()
-    if not vmax:
-        vmax = field.max()
-    if scale == 'lin':
-      norm = mpl.colors.Normalize(vmin=vmin, vmax=vmax)
-    elif scale == 'log':
-      vmax = max(vmax, 1e-10)
-      norm = mpl.colors.LogNorm(vmin=max(vmin, vmax/1e10), vmax=vmax)
-    elif scale == 'sym':
-      vmax = max(np.abs(vmin), vmax)
-      norm=mpl.colors.SymLogNorm(vmin=-vmax, vmax=vmax,
-                                 linthresh=kwargs['lth'],
-                                 linscale=kwargs['lsc'])
-
-    im = ax.imshow(field, norm=norm,
-                   cmap=cmap, origin='lower',
-                   extent=(x.min(), x.max(), y.min(), y.max()))
-
-    if 'xlabel' in kwargs:
-        ax.set_xlabel(kwargs['xlabel'])
-    else:
-        ax.set_xlabel('x' if not rotate else 'y')
-    if 'ylabel' in kwargs:
-        ax.set_ylabel(kwargs['ylabel'])
-    else:
-        ax.set_ylabel('y' if not rotate else 'x')
-    if cbar is not None:
-        divider = make_axes_locatable(ax)
-        cax = divider.append_axes("right", size=cbar, pad=cbar_pad)
-        plt.colorbar(im, cax=cax)
-    ax.set_title(title)
-
-
-def plot2DScatterParticles(ax, x_list, y_list,
-                           label='particles', legend=True,
-                           color='black', **kwargs):
-    ax.scatter(x_list, y_list, c=color, label=label, **kwargs)
-    ax.set_aspect(1)
-    if legend:
-        ax.legend()
-
-def plot2DDomains(ax, domain_data,
-                  color='red', **kwargs):
-    from matplotlib.patches import Rectangle
-    x0_list = domain_data['x0']
-    y0_list = domain_data['y0']
-    sx_list = domain_data['sx']
-    sy_list = domain_data['sy']
-    for x0, y0, sx, sy in zip(x0_list, y0_list, sx_list, sy_list):
-        rect = Rectangle((x0, y0), sx, sy,
-                         edgecolor=color, facecolor='none')
-        ax.add_patch(rect)
-
-def plotReport(ax, data, only_fullstep = True, **kwargs):
-    labels = []
-    y_list = []
-    for k in list(data.keys())[1:]:
-        y_list.append
-        if (k.split()[0] != 'nprt') and (((k.split()[0] != 'Full_step') and (not only_fullstep)) or (only_fullstep and k.split()[0] == 'Full_step')):
-            labels.append(k)
-            y_list.append(data[k]['dt'])
-    y = np.vstack(y_list)
-    if (only_fullstep and 'label' in kwargs):
-        labels = [kwargs['label']]
-    if (only_fullstep):
-        ax.plot(data['t'], y[0], label = labels[0])
-    else:
-        ax.stackplot(data['t'], y, labels = labels)
-    ax.legend()
-    ax.set_ylabel(r'$\Delta t$ [ms]')
-    ax.set_xlabel(r'timestep')
