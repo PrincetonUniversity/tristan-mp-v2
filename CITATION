@@ -2,6 +2,17 @@ If you use `Tristan-MP v2` for work/research presented in a publication (whether
 
   This research made use of "Tristan-MP v2" particle-in-cell code.
 
+You may also use the following `bibtex` entry:
+
+```
+@ONLINE {tristanv2,
+    author = "H. Hakobyan and A. Spitkovsky",
+    title  = "Tristan-MP v2, multi-species particle-in-cell plasma code",
+    year   = "2020",
+    url    = "https://ntoles.github.io/tristan-wiki/"
+}
+```
+
 We also recommend to link to the source code on github: https://github.com/PrincetonUniversity/tristan-mp-v2.
 
 Preferred citation method:
