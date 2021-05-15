@@ -80,10 +80,12 @@ OBJ_FILES := $(addprefix $(OBJ_DIR), $(notdir $(PREC_SRC_FILES:.F90=.o)))
 .PHONY : all clean
 
 all: backup dirs precomp $(EXECUTABLE)
+	
+EXCLUDE_FILES := "$(OBJ_DIR)*" "$(PREC_SRC_DIR)*" "$(EXE_DIR)*" ".git/*" "$(BACKUP_DIR)*" "*/__pycache__/*"
 
 backup:
 	mkdir -p $(BACKUP_DIR)
-	zip -r $(BACKUP_DIR)/backup_$(NOW).zip . -x \*.zip $(OBJ_DIR)/**\* $(PREC_SRC_DIR)/**\* $(EXE_DIR)/**\*
+	zip -r $(BACKUP_DIR)backup_$(NOW).zip . -x $(EXCLUDE_FILES)
 
 dirs:
 	mkdir -p $(OBJ_DIR) $(EXE_DIR) $(PREC_SRC_DIR)
