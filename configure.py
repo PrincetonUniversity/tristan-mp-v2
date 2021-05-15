@@ -25,10 +25,16 @@ parser.add_argument('-perseus',
                     default=False,
                     help='configure for `Perseus` cluster.')
 
-parser.add_argument('-intel',
-                    action='store_true',
-                    default=True,
-                    help='enable intel compiler')
+compiler_group = parser.add_mutually_exclusive_group(required=True)
+compiler_group.add_argument('-intel',
+                            action='store_true',
+                            default=False,
+                            help='enable intel compiler')
+compiler_group.add_argument('-gcc',
+                            action='store_true',
+                            default=False,
+                            help='enable gcc compiler')
+
 parser.add_argument('-hdf5',
                     action='store_true',
                     default=False,
@@ -196,7 +202,8 @@ if args['intel']:
   makefile_options['COMPILER_FLAGS'] += '-O3 -DSoA -ipo -qopenmp-simd -qopt-report=5 -qopt-streaming-stores auto '
 else:
   makefile_options['MODULE'] = '-J '
-  makefile_options['COMPILER_FLAGS'] += '-O3 -DSoA -fwhole-program -mavx2 -fopt-info-vec -fopt-info-vec-missed -ftree-vectorizer-verbose=5 '
+  makefile_options['COMPILER_FLAGS'] += '-O3 -DSoA -mavx2 -fopt-info-vec '
+  # makefile_options['COMPILER_FLAGS'] += '-O3 -DSoA -fwhole-program -mavx2 -fopt-info-vec -fopt-info-vec-missed -ftree-vectorizer-verbose=5 '
 
 if args['avx2']:
   makefile_options['COMPILER_FLAGS'] += '-xCORE-AVX2 '
