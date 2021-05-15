@@ -186,7 +186,7 @@ contains
           i = x_cut - this_x0
           do j = 0, this_sy - 1
             do k = 0, this_sz - 1
-              call selectFieldForOutput(fld_vars(f), 0, j, k, i, j, k, writing_lgarrQ)
+              call selectFieldForOutput(fld_vars(f), 0_2, j, k, i, j, k, writing_lgarrQ)
             end do
           end do
           if (mpi_rank .ne. root_rnk) then
@@ -296,7 +296,7 @@ contains
           j = y_cut - this_y0
           do i = 0, this_sx - 1
             do k = 0, this_sz - 1
-              call selectFieldForOutput(fld_vars(f), i, 0, k, i, j, k, writing_lgarrQ)
+              call selectFieldForOutput(fld_vars(f), i, 0_2, k, i, j, k, writing_lgarrQ)
             end do
           end do
           if (mpi_rank .ne. root_rnk) then
@@ -406,7 +406,7 @@ contains
           k = z_cut - this_z0
           do i = 0, this_sx - 1
             do j = 0, this_sy - 1
-              call selectFieldForOutput(fld_vars(f), i, j, 0, i, j, k, writing_lgarrQ)
+              call selectFieldForOutput(fld_vars(f), i, j, 0_2, i, j, k, writing_lgarrQ)
             end do
           end do
           if (mpi_rank .ne. root_rnk) then
