@@ -305,14 +305,14 @@ contains
       end if
     end do
 
-    fld_vars(n_fld_vars + 1 : n_fld_vars + 1 + 12) =&
+    fld_vars(n_fld_vars + 1 : n_fld_vars + 1 + 11) =&
                                  & (/'ex   ', 'ey   ', 'ez   ',&
                                    & 'bx   ', 'by   ', 'bz   ',&
                                    & 'jx   ', 'jy   ', 'jz   ',&
                                    & 'xx   ', 'yy   ', 'zz   '/)
     n_fld_vars = n_fld_vars + 12
     if (derivatives_enable) then
-      fld_vars(n_fld_vars + 1 : n_fld_vars + 1 + 4) = (/'curlBx', 'curlBy', 'curlBz', 'divE'/)
+      fld_vars(n_fld_vars + 1 : n_fld_vars + 1 + 3) = (/'crlBx', 'crlBy', 'crlBz', 'divE '/)
       n_fld_vars = n_fld_vars + 4
     end if
   end subroutine defineFieldVarsToOutput
@@ -390,7 +390,7 @@ contains
         jz0 = jz(i, j, k)
       #endif
       sm_arr(i1, j1, k1) = -jz0 * B_norm
-    case('curlBx')
+    case('crlBx')
       #ifdef oneD
         dx1 = 0.0; dx2 = 0.0
       #elif twoD
@@ -401,7 +401,7 @@ contains
         dx2 = (bz(i - 1,    j,    k) - bz(i - 1,j - 1,    k)) - (by(i - 1,    j,    k) - by(i - 1,    j,k - 1))
       #endif
       sm_arr(i1, j1, k1) = B_norm * 0.5 * (dx1 + dx2)
-    case('curlBy')
+    case('crlBy')
       #ifdef oneD
         dy1 = -(bz(i, j, k) - bz(i - 1, j, k))
         dy2 = dy1
@@ -413,7 +413,7 @@ contains
         dy2 = (bx(    i,j - 1,    k) - bx(    i,j - 1,k - 1)) - (bz(    i,j - 1,    k) - bz(i - 1,j - 1,    k))
       #endif
       sm_arr(i1, j1, k1) = B_norm * 0.5 * (dy1 + dy2)
-    case('curlBz')
+    case('crlBz')
       #ifdef oneD
         dz1 = (by(i, j, k) - by(i - 1, j, k))
         dz2 = dz1
@@ -430,9 +430,11 @@ contains
       #if defined(oneD) || defined (twoD) || defined (threeD)
         divE = divE + (ex(i, j, k) - ex(i - 1, j, k))
       #endif
+
       #if defined(twoD) || defined (threeD)
         divE = divE + (ey(i, j, k) - ey(i, j - 1, k))
       #endif
+
       #if defined(threeD)
         divE = divE + (ez(i, j, k) - ez(i, j, k - 1))
       #endif
