@@ -307,6 +307,7 @@ contains
         end if
       end subroutine writeFields_hdf5
     #endif
+
   #endif
 
   #ifdef HDF5
@@ -357,6 +358,7 @@ contains
           glob_n_i = CEILING(REAL(global_mesh%sx) / REAL(output_flds_istep))
           glob_n_i = MAX(1, glob_n_i)
         #endif
+
         #if defined(twoD) || defined (threeD)
           offset_j = CEILING(REAL(this_y0) / REAL(output_flds_istep))
           j_start = CEILING(REAL(this_y0) / REAL(output_flds_istep)) * output_flds_istep - this_y0
@@ -365,6 +367,7 @@ contains
           glob_n_j = CEILING(REAL(global_mesh%sy) / REAL(output_flds_istep))
           glob_n_j = MAX(1, glob_n_j)
         #endif
+
         #if defined(threeD)
           offset_k = CEILING(REAL(this_z0) / REAL(output_flds_istep))
           k_start = CEILING(REAL(this_z0) / REAL(output_flds_istep)) * output_flds_istep - this_z0

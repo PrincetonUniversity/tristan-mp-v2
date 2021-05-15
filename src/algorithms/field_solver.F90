@@ -19,6 +19,7 @@ contains
     const = CORR * 0.5 * CC
 
     #ifndef ABSORB
+
       #ifdef oneD
         k = 0
         j = 0
@@ -60,7 +61,9 @@ contains
           enddo
         enddo
       #endif
+
     #else
+
       #ifdef oneD
         k = 0
         zg = 0.0
@@ -147,6 +150,7 @@ contains
           enddo
         enddo
       #endif
+
     #endif
     call printDiag((mpi_rank .eq. 0), "advanceBHalfstep()", .true.)
   end subroutine advanceBHalfstep
@@ -159,6 +163,7 @@ contains
     const = CORR * CC
 
     #ifndef ABSORB
+
       #ifdef oneD
         k = 0
         j = 0
@@ -200,7 +205,9 @@ contains
           enddo
         enddo
       #endif
+
     #else
+
       #ifdef oneD
         k = 0
         zg = 0.0
@@ -287,6 +294,7 @@ contains
           enddo
         enddo
       #endif
+
     #endif
     call printDiag((mpi_rank .eq. 0), "advanceEFullstep()", .true.)
   end subroutine advanceEFullstep
@@ -369,6 +377,7 @@ contains
           end if
         end if
       #endif
+
       #if defined(twoD) || defined (threeD)
         if (boundary_y .eq. 0) then
           ! open boundaries in y direction
@@ -379,6 +388,7 @@ contains
           end if
         end if
       #endif
+
       #if defined(threeD)
         if (boundary_z .eq. 0) then
           ! open boundaries in z direction

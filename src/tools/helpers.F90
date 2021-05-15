@@ -68,9 +68,11 @@ contains
       #if defined(oneD) || defined (twoD) || defined (threeD)
         x_loc = MAX(0.0, MIN(x_glob - REAL(this_meshblock%ptr%x0), REAL(this_meshblock%ptr%sx)))
       #endif
+
       #if defined (twoD) || defined (threeD)
         y_loc = MAX(0.0, MIN(y_glob - REAL(this_meshblock%ptr%y0), REAL(this_meshblock%ptr%sy)))
       #endif
+
       #if defined(threeD)
         z_loc = MAX(0.0, MIN(z_glob - REAL(this_meshblock%ptr%z0), REAL(this_meshblock%ptr%sz)))
       #endif
@@ -79,9 +81,11 @@ contains
       #if defined(oneD) || defined (twoD) || defined (threeD)
         x_loc = x_glob - REAL(this_meshblock%ptr%x0)
       #endif
+
       #if defined (twoD) || defined (threeD)
         y_loc = y_glob - REAL(this_meshblock%ptr%y0)
       #endif
+
       #if defined(threeD)
         z_loc = z_glob - REAL(this_meshblock%ptr%z0)
       #endif
@@ -137,6 +141,7 @@ contains
         xi_ = xi_ - 1; dx_ = dx_ + 1.0
       end if
     #endif
+
     #if defined (twoD) || defined (threeD)
       rnd = random(dseed)
       y_ = ymin + rnd * (ymax - ymin)
@@ -145,6 +150,7 @@ contains
         yi_ = yi_ - 1; dy_ = dy_ + 1.0
       end if
     #endif
+
     #if defined(threeD)
       rnd = random(dseed)
       z_ = zmin + rnd * (zmax - zmin)
@@ -311,10 +317,12 @@ contains
               i1 = max(i - ds_, -NGHOST)
               i2 = min(i + ds_, this_meshblock%ptr%sx + NGHOST - 1)
             #endif
+
             #if defined (twoD) || defined (threeD)
               j1 = max(j - ds_, -NGHOST)
               j2 = min(j + ds_, this_meshblock%ptr%sy + NGHOST - 1)
             #endif
+
             #if defined (threeD)
               k1 = max(k - ds_, -NGHOST)
               k2 = min(k + ds_, this_meshblock%ptr%sz + NGHOST - 1)
@@ -408,10 +416,12 @@ contains
               i1 = max(i - ds_, -NGHOST)
               i2 = min(i + ds_, this_meshblock%ptr%sx + NGHOST - 1)
             #endif
+
             #if defined (twoD) || defined (threeD)
               j1 = max(j - ds_, -NGHOST)
               j2 = min(j + ds_, this_meshblock%ptr%sy + NGHOST - 1)
             #endif
+
             #if defined (threeD)
               k1 = max(k - ds_, -NGHOST)
               k2 = min(k + ds_, this_meshblock%ptr%sz + NGHOST - 1)
@@ -482,10 +492,12 @@ contains
               i1 = max(i - ds_, -NGHOST)
               i2 = min(i + ds_, this_meshblock%ptr%sx + NGHOST - 1)
             #endif
+
             #if defined (twoD) || defined (threeD)
               j1 = max(j - ds_, -NGHOST)
               j2 = min(j + ds_, this_meshblock%ptr%sy + NGHOST - 1)
             #endif
+
             #if defined (threeD)
               k1 = max(k - ds_, -NGHOST)
               k2 = min(k + ds_, this_meshblock%ptr%sz + NGHOST - 1)
@@ -560,6 +572,7 @@ contains
         c1 = c01 * (1 - dy) + c11 * dy
         intfx = c0 * (1 - dz) + c1 * dz
       #endif
+
     #endif
 
     ! f_y
@@ -587,6 +600,7 @@ contains
         c1 = c01 * (1 - dy) + c11 * dy
         intfy = c0 * (1 - dz) + c1 * dz
       #endif
+
     #endif
 
     ! f_z

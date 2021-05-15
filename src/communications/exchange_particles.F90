@@ -61,9 +61,11 @@ contains
               #if defined(oneD) || defined(twoD) || defined(threeD)
                 send_x = (ISIGN(1, pt_xi(p) - this_meshblock%ptr%sx) + 1) / 2 - (ISIGN(1, -pt_xi(p) - 1) + 1) / 2
               #endif
+
               #if defined(twoD) || defined(threeD)
                 send_y = (ISIGN(1, pt_yi(p) - this_meshblock%ptr%sy) + 1) / 2 - (ISIGN(1, -pt_yi(p) - 1) + 1) / 2
               #endif
+
               #if defined(threeD)
                 send_z = (ISIGN(1, pt_zi(p) - this_meshblock%ptr%sz) + 1) / 2 - (ISIGN(1, -pt_zi(p) - 1) + 1) / 2
               #endif

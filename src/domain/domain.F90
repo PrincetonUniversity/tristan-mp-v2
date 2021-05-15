@@ -25,9 +25,11 @@ module m_domain
     #if defined(oneD) || defined (twoD) || defined (threeD)
       real     :: x_min, x_max
     #endif
+
     #if defined(twoD) || defined (threeD)
       real     :: y_min, y_max
     #endif
+
     #if defined(threeD)
       real     :: z_min, z_max
     #endif

@@ -211,10 +211,12 @@ contains
       call getInput('node_configuration', 'sizex', sizex)
       call getInput('grid', 'mx0', global_mesh%sx)
     #endif
+
     #if defined(twoD) || defined (threeD)
       call getInput('node_configuration', 'sizey', sizey)
       call getInput('grid', 'my0', global_mesh%sy)
     #endif
+    
     #if defined(threeD)
       call getInput('node_configuration', 'sizez', sizez)
       call getInput('grid', 'mz0', global_mesh%sz)
@@ -303,6 +305,7 @@ contains
       call getInput('adaptive_load_balancing', 'interval_x', alb_int_x, 1000)
       call getInput('adaptive_load_balancing', 'start_x', alb_start_x, 0)
     #endif
+
     #if defined(twoD) || defined (threeD)
       call getInput('static_load_balancing', 'in_y', slb_y, .false.)
       call getInput('static_load_balancing', 'sy_min', slb_symin, 10)
@@ -312,6 +315,7 @@ contains
       call getInput('adaptive_load_balancing', 'interval_y', alb_int_y, 1000)
       call getInput('adaptive_load_balancing', 'start_y', alb_start_y, 0)
     #endif
+
     #if defined(threeD)
       call getInput('static_load_balancing', 'in_z', slb_z, .false.)
       call getInput('static_load_balancing', 'sz_min', slb_szmin, 10)
@@ -395,7 +399,7 @@ contains
       if ((species(s)%m_sp .ne. 0) .and. (species(s)%ch_sp .eq. 0)) then
         call throwError('ERROR: massive zero-charge particles are not allowed')
       end if
-      if ((species(s)%ch_sp .eq. 0) .and. (species(s)%deposit_sp .ne. 0)) then
+      if ((species(s)%ch_sp .eq. 0) .and. (species(s)%deposit_sp)) then
         call throwError('ERROR: zero-charged particles cannot deposit current')
       end if
 
@@ -448,10 +452,12 @@ contains
     #if defined (oneD) || defined (twoD) || defined (threeD)
       buffsize_x = this_meshblock%ptr%sy * this_meshblock%ptr%sz * multiplier
     #endif
+
     #if defined (twoD) || defined (threeD)
       buffsize_y = this_meshblock%ptr%sx * this_meshblock%ptr%sz * multiplier
       buffsize_xy = this_meshblock%ptr%sz * multiplier
     #endif
+
     #if defined(threeD)
       buffsize_z = this_meshblock%ptr%sx * this_meshblock%ptr%sy * multiplier
       buffsize_xz = this_meshblock%ptr%sz * multiplier

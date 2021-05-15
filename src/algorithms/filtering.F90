@@ -13,9 +13,11 @@ module m_filtering
   #if defined(oneD) || defined(twoD) || defined(threeD)
     private :: filterInX
   #endif
+
   #if defined(twoD) || defined(threeD)
     private :: filterInY
   #endif
+
   #if defined(threeD)
     private :: filterInZ
   #endif
@@ -58,12 +60,14 @@ contains
       call filterInX(jz, do_n_times)
       call exchangeCurrents(.true.)
     #endif
+
     #if defined(twoD) || defined (threeD)
       call filterInY(jx, do_n_times)
       call filterInY(jy, do_n_times)
       call filterInY(jz, do_n_times)
       call exchangeCurrents(.true.)
     #endif
+
     #if defined(threeD)
       call filterInZ(jx, do_n_times)
       call filterInZ(jy, do_n_times)

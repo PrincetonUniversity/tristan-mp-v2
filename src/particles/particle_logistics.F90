@@ -33,9 +33,11 @@ contains
     #if defined(oneD) || defined (twoD) || defined (threeD)
       ti = FLOOR(REAL(xi) / REAL(species(s)%tile_sx)) + 1
     #endif
+
     #if defined (twoD) || defined (threeD)
       tj = FLOOR(REAL(yi) / REAL(species(s)%tile_sy)) + 1
     #endif
+
     #if defined (threeD)
       tk = FLOOR(REAL(zi) / REAL(species(s)%tile_sz)) + 1
     #endif
