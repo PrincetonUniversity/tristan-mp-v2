@@ -2,7 +2,7 @@
 
 module m_writehistory
   use m_globalnamespace
-  use m_outputnamespace, only: hst_enable, hst_human_readable, hst_interval
+  use m_outputnamespace, only: hst_enable, hst_interval
   use m_aux
   use m_errors
   use m_domain
@@ -20,7 +20,6 @@ contains
     implicit none
     call getInput('output', 'hst_enable', hst_enable, .false.)
     call getInput('output', 'hst_interval', hst_interval, 1)
-    call getInput('output', 'hst_readable', hst_human_readable, .false.)
   end subroutine initializeHistory
 
   ! FIX2 total E^2, total B^2, total E_kin
@@ -39,11 +38,7 @@ contains
     character(len=STR_MAX)  :: FMT, dummy1, dummy2, dummy3, dummy4, filename
     procedure (getFMT), pointer :: get_fmt_ptr => null()
 
-    if (hst_human_readable) then
-      get_fmt_ptr => getFMTForReal
-    else
-      get_fmt_ptr => getFMTForRealScientific
-    end if
+    get_fmt_ptr => getFMTForRealScientific
 
     allocate(global_prtl_energy(nspec))
 
@@ -199,7 +194,7 @@ contains
 
       close(UNIT_history)
     end if
-    call printDiag((mpi_rank .eq. 0), "history()", .true.)
+    call printDiag("writeHistory()", 2)
   end subroutine writeHistory
 
   subroutine computeEnergyInBox(e_energy, b_energy, prtl_energy)

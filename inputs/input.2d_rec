@@ -47,6 +47,10 @@
   spec_max      = 1e4            # `g - 1` for massive and `e` for massless
   spec_num      = 300            # number of energy bins
 
+	# user-specific output
+	usr_enable    = 0							 # enable/disable usr-output [0]
+	usr_interval  = 100						 # interval between usr-output steps [100]
+
 <plasma>
 
   ppc0          = 50
@@ -75,8 +79,8 @@
   max_weight    = 100           # maximum weight of merging particles [1e2]
 
   cartesian_bins = 0            # cartesian or spherical momentum binning [0]
-  energy_min    = 1e-1          # min energy of merged particle [1e-2]
-  energy_max    = 1e1           # max energy of merged particle [1e2]
+  energy_min    = 1e-2          # min energy of merged particle [1e-2]
+  energy_max    = 1e3           # max energy of merged particle [1e2]
   int_weights   = 1             # enforce integer weights when merging [0]
 
   # if spherical binning
@@ -92,8 +96,25 @@
 
 <problem>
 
-  upstream_T      = 1e-4        # temperature in terms of [m_e c**2]
-  nCS_nUP         = 3.0
-  current_width   = 20
+	# to generate a double periodic setup set `boundary_x = 1` above
+
+  upstream_T      = 1e-4        # temperature in terms of in m_e c**2 [*]
+  nCS_nUP         = 3.0					# density of the initial current sheet [0 = no sheet]
+  current_width   = 20					# width of the current sheet [*]
+
+	# injector properties (used only when `boundary_x .ne. 1`)
   injector_sx     = 150
   injector_betax  = 0.99999
+
+	# species in the current sheet and upstream
+	cs_lecs					= 1						# [1]
+	cs_ions					= 2						# [2]
+	up_lecs					= 1						# [1]
+	up_ions					= 2						# [2]
+
+	# measure ExB along y with x = fraction of global sx (from left wall) ...
+	# ... used when `usr_enable` is set to `.true.`
+	measure_x				= 0.1 				# fraction of sx [0.2]
+
+	open_boundaries = -1          # timestep to open y-boundaries (-1 = keep periodic) [-1]
+	perturb         = 0           # perturb the middle of the current sheet to trigger [0]

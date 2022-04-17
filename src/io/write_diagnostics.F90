@@ -26,7 +26,7 @@ contains
     #ifdef HDF5
       call writeDomain_hdf5(step, time)
     #endif
-    call printDiag((mpi_rank .eq. 0), "...writeDiagnostics()", .true.)
+    call printDiag("writeDiagnostics()", 3)
   end subroutine writeDiagnostics
 
   #ifdef HDF5

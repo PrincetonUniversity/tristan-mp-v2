@@ -398,6 +398,23 @@ contains
 
     dwn_tile%weight(p) = tile%weight(p_ind)
 
+    #ifdef GCA
+      dwn_tile%xi_past(p) = tile%xi_past(p_ind)
+      dwn_tile%yi_past(p) = tile%yi_past(p_ind)
+      dwn_tile%zi_past(p) = tile%zi_past(p_ind)
+
+      dwn_tile%dx_past(p) = tile%dx_past(p_ind)
+      dwn_tile%dy_past(p) = tile%dy_past(p_ind)
+      dwn_tile%dz_past(p) = tile%dz_past(p_ind)
+
+      dwn_tile%u_eff(p) = tile%u_eff(p_ind)
+      dwn_tile%v_eff(p) = tile%v_eff(p_ind)
+      dwn_tile%w_eff(p) = tile%w_eff(p_ind)
+
+      dwn_tile%u_par(p) = tile%u_par(p_ind)
+      dwn_tile%u_perp(p) = tile%u_perp(p_ind)
+    #endif
+
     #ifdef PRTLPAYLOADS
       dwn_tile%payload1(p) = tile%payload1(p_ind)
       dwn_tile%payload2(p) = tile%payload2(p_ind)
@@ -485,27 +502,3 @@ contains
   end subroutine binParticlesOnTile_Cartesian
   ! = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 end module m_particlebinning
-
-
-! #ifdef DEBUG
-!   ! if ((pi .le. 0) .or. (pi .gt. dwn_n_mom_bins) .or.&
-!   !   & (pj .le. 0) .or. (pj .gt. dwn_n_mom_bins) .or.&
-!   !   & (pk .le. 0) .or. (pk .gt. dwn_n_mom_bins)) then
-!   !   print *, pi, pj, pk
-!   !   print *, prtl_ux, px_min, del_ex
-!   !   print *, prtl_uy, py_min, del_ey
-!   !   print *, prtl_uz, pz_min, del_ey
-!   !   call throwError('ERROR: Wrong bin in `binParticlesOnTile_Cartesian()`.')
-!   ! end if
-!   ! if ((prtl_ux .le. momentum_bins(pi, pj, pk)%px_min) .or.&
-!   !   & (prtl_ux .gt. momentum_bins(pi, pj, pk)%px_max) .or.&
-!   !   & (prtl_uy .le. momentum_bins(pi, pj, pk)%py_min) .or.&
-!   !   & (prtl_uy .gt. momentum_bins(pi, pj, pk)%py_max) .or.&
-!   !   & (prtl_uz .le. momentum_bins(pi, pj, pk)%pz_min) .or.&
-!   !   & (prtl_uz .gt. momentum_bins(pi, pj, pk)%pz_max)) then
-!   !   print *, prtl_ux, momentum_bins(pi, pj, pk)%px_min, momentum_bins(pi, pj, pk)%px_max, px_min, px_max
-!   !   print *, prtl_uy, momentum_bins(pi, pj, pk)%py_min, momentum_bins(pi, pj, pk)%py_max, py_min, py_max
-!   !   print *, prtl_uz, momentum_bins(pi, pj, pk)%pz_min, momentum_bins(pi, pj, pk)%pz_max, pz_min, pz_max
-!   !   call throwError('ERROR: Wrong bin by PXYZ in `binParticlesOnTile_Cartesian()`.')
-!   ! end if
-! #endif

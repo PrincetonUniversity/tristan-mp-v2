@@ -1,6 +1,4 @@
 # Template for `TRISTAN-MP v2` Makefile
-# Kindly borrowed from `Athena++`
-SHELL=/bin/sh
 
 # Files for conditional compilation
 USER_FILE = @USER_FILE@
@@ -17,28 +15,22 @@ SRC_DIR := src/
 PREC_SRC_DIR := src_/
 EXE_FILE := @EXE_NAME@
 
-BACKUP_DIR := backups/
-NOW := $(shell date +"%H.%M.%S_%m.%d.%y")
-
 EXECUTABLE := $(EXE_DIR)$(EXE_FILE)
 
 SRC_FILES :=$(SRC_DIR)global_namespace.F90 \
 						$(SRC_DIR)output_namespace.F90 \
 						$(SRC_DIR)tools/auxiliary.F90 \
-						$(SRC_DIR)domain/domain.F90 \
-						$(SRC_DIR)fields.F90 \
-						$(SRC_DIR)particles/particles.F90 \
-						$(SRC_DIR)main/finalize.F90 \
 						$(SRC_DIR)tools/error_handling.F90 \
 						$(SRC_DIR)io/read_input.F90 \
+						$(SRC_DIR)domain/domain.F90 \
+						$(SRC_DIR)fields/fields.F90 \
+						$(SRC_DIR)particles/particles.F90 \
 						$(SRC_DIR)tools/helpers.F90 \
+						$(SRC_DIR)fields/field_logistics.F90 \
 						$(SRC_DIR)particles/particle_binning.F90 \
 						$(SRC_DIR)particles/binary_coupling.F90 \
 						$(SRC_DIR)particles/particle_logistics.F90 \
 						$(SRC_DIR)particles/particle_downsampling.F90 \
-						$(SRC_DIR)domain/static_lb.F90 \
-						$(SRC_DIR)domain/adaptive_lb.F90 \
-						$(SRC_DIR)domain/loadbalancing.F90 \
 						$(SRC_DIR)particles/thermal_plasma.F90 \
 						$(SRC_DIR)particles/powerlaw_plasma.F90 \
 						$(SRC_DIR)communications/exchange_particles.F90 \
@@ -46,6 +38,12 @@ SRC_FILES :=$(SRC_DIR)global_namespace.F90 \
 						$(SRC_DIR)communications/exchange_currents.F90 \
 						$(SRC_DIR)communications/exchange_array.F90 \
 						$(SRC_DIR)io/output_logistics.F90 \
+						$(SRC_DIR)io/write_usroutput.F90 \
+						$(SRC_DIR)restart/restart.F90 \
+						$(SRC_DIR)domain/static_lb.F90 \
+						$(SRC_DIR)domain/adaptive_lb.F90 \
+						$(SRC_DIR)domain/loadbalancing.F90 \
+						$(addprefix $(USR_DIR), $(USER_FILE).F90) \
 						$(SRC_DIR)io/write_slice.F90 \
 						$(SRC_DIR)io/write_params.F90 \
 						$(SRC_DIR)io/write_tot_flds.F90 \
@@ -53,15 +51,15 @@ SRC_FILES :=$(SRC_DIR)global_namespace.F90 \
 						$(SRC_DIR)io/write_spectra.F90 \
 						$(SRC_DIR)io/write_diagnostics.F90 \
 						$(SRC_DIR)io/write_tot.F90 \
-						$(SRC_DIR)io/write_restart.F90 \
 						$(SRC_DIR)io/write_history.F90 \
-						$(addprefix $(USR_DIR), $(USER_FILE).F90) \
 						$(SRC_DIR)algorithms/particle_mover.F90 \
 						$(SRC_DIR)algorithms/field_solver.F90 \
 						$(SRC_DIR)algorithms/current_deposit.F90 \
 						$(SRC_DIR)algorithms/filtering.F90 \
 						$(SRC_DIR)main/initialize.F90 \
+						$(SRC_DIR)main/finalize.F90 \
 						$(SRC_DIR)main/tristanmainloop.F90 \
+						$(SRC_DIR)main/testsite.F90 \
 						$(SRC_DIR)main/tristan.F90
 
 INCL_FILES := $(SRC_DIR)tools/interp_efield.F \
@@ -69,7 +67,9 @@ INCL_FILES := $(SRC_DIR)tools/interp_efield.F \
 							$(SRC_DIR)algorithms/boris/boris_push.F \
 							$(SRC_DIR)algorithms/vay/vay_push.F \
 							$(SRC_DIR)algorithms/position_update.F \
-							$(SRC_DIR)algorithms/zigzag_deposit.F
+							$(SRC_DIR)algorithms/zigzag_deposit.F \
+							$(SRC_DIR)algorithms/gca/gca_routine.F \
+							$(SRC_DIR)algorithms/gca/gca_ecrossb_drift.F
 
 PREC_SRC_FILES := $(addprefix $(PREC_SRC_DIR), $(notdir $(SRC_FILES:.F90=_.F90)))
 
@@ -77,22 +77,18 @@ OBJ_DIR := obj/
 OBJ_FILES := $(addprefix $(OBJ_DIR), $(notdir $(PREC_SRC_FILES:.F90=.o)))
 
 ###########################
-.PHONY : all clean
+.PHONY : all clean dirs
 
-all: backup dirs precomp $(EXECUTABLE)
-	
-EXCLUDE_FILES := "$(OBJ_DIR)*" "$(PREC_SRC_DIR)*" "$(EXE_DIR)*" ".git/*" "$(BACKUP_DIR)*" "*/__pycache__/*"
+all: dirs precomp $(EXECUTABLE)
 
-backup:
-	mkdir -p $(BACKUP_DIR)
-	zip -r $(BACKUP_DIR)backup_$(NOW).zip . -x $(EXCLUDE_FILES)
+EXCLUDE_FILES := "$(OBJ_DIR)*" "$(PREC_SRC_DIR)*" "$(EXE_DIR)*" ".git/*" "*/__pycache__/*" "test_*/*"
 
 dirs:
 	mkdir -p $(OBJ_DIR) $(EXE_DIR) $(PREC_SRC_DIR)
 
 precomp:
 	$(foreach fl, $(SRC_FILES), cpp -nostdinc -C -P -w $(PFLAGS) $(fl) > $(addprefix $(PREC_SRC_DIR), $(notdir $(fl:.F90=_.F90)));)
-	$(foreach fl, $(INCL_FILES), cpp -nostdinc -C -P -w $(PFLAGS) $(fl) > $(addprefix $(PREC_SRC_DIR), $(notdir $(fl:.F=.F)));)
+	$(foreach fl, $(INCL_FILES), cpp -nostdinc -C -P -w $(PFLAGS) $(fl) > $(addprefix $(PREC_SRC_DIR), $(notdir $(fl)));)
 
 $(EXECUTABLE):$(OBJ_FILES)
 	$(FC) $(FFLAGS) $(PFLAGS) -o $@ $(OBJ_FILES)

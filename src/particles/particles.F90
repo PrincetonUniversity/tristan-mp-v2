@@ -17,6 +17,14 @@ module m_particles
     real, allocatable, dimension(:)             :: weight
     integer, allocatable, dimension(:)          :: ind, proc
     !dir$ attributes align: 64 :: xi, yi, zi, dx, dy, dz, u, v, w, weight, ind, proc
+    #ifdef GCA
+      ! GCA specific variables
+      integer(kind=2), allocatable, dimension(:)  :: xi_past, yi_past, zi_past
+      real, allocatable, dimension(:)             :: dx_past, dy_past, dz_past
+      real, allocatable, dimension(:)             :: u_eff, v_eff, w_eff
+      real, allocatable, dimension(:)             :: u_par, u_perp
+      !dir$ attributes align: 64 :: xi_past, yi_past, zi_past, dx_past, dy_past, dz_past, u_eff, v_eff, w_eff, u_par, u_perp
+    #endif
 
     #ifdef PRTLPAYLOADS
       real, allocatable, dimension(:)             :: payload1, payload2, payload3
@@ -39,6 +47,11 @@ module m_particles
     ! `true/false` - whether this species is saved into particle output
     logical     :: output_sp
 
+    #ifdef GCA
+      ! `true/false` - either this species can be treated in a GCA mover, or not
+      logical     :: gca_sp
+    #endif
+
     #ifdef DOWNSAMPLING
       ! `true/false` - either downsample species or not
       logical     :: dwn_sp
@@ -50,19 +63,37 @@ module m_particles
   type :: prtl_enroute
     ! DEP_PRT [particle-dependent]
     integer(kind=2)   :: xi, yi, zi
+
+    #ifdef GCA
+      integer(kind=2)   :: xi_past, yi_past, zi_past
+    #endif
+
     real              :: dx, dy, dz
+
+    #ifdef GCA
+      real              :: dx_past, dy_past, dz_past
+    #endif
+
     real              :: u, v, w
+
+    #ifdef GCA
+      real              :: u_eff, v_eff, w_eff
+      real              :: u_perp, u_par
+    #endif
+
     real              :: weight
+
     #ifdef PRTLPAYLOADS
       real              :: payload1, payload2, payload3
     #endif
+
     integer           :: ind, proc
   end type prtl_enroute
 
   type :: enroute_array
-    type(prtl_enroute), allocatable     :: send_enroute(:)
-    integer                             :: cnt_send
-    integer                             :: max_send
+    type(prtl_enroute), allocatable     :: enroute(:)
+    integer                             :: cnt
+    integer                             :: max
   end type enroute_array
 
   type :: enroute_handler
@@ -74,9 +105,13 @@ module m_particles
   type(particle_species), target, allocatable   :: species(:)
   ! number of species
   integer                                       :: nspec
+  integer(kind=8), allocatable                  :: maxptl_array(:)
 
-  type(prtl_enroute), allocatable, dimension(:)    :: recv_enroute
+  ! type(prtl_enroute), allocatable, dimension(:)    :: recv_enroute
+  type(enroute_array)                              :: recv_enroute
   type(enroute_handler)                            :: enroute_bot
+
+  type(enroute_array), allocatable, dimension(:)   :: prtl_backup
 
   #ifdef MPI08
     type(MPI_DATATYPE)                             :: myMPI_ENROUTE

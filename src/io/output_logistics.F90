@@ -9,8 +9,11 @@ module m_outputlogistics
   use m_particles
   use m_fields
   use m_readinput, only: getInput
-  use m_helpers, only: computeDensity, computeMomentum, computeNpart
+  use m_helpers, only: computeDensity, computeMomentum, computeNpart, computeFluidVelocity, computeFluidDensity
   use m_helpers, only: interpFromFaces, interpFromEdges
+  #ifdef GCA
+    use m_helpers, only: computeDensityGCA
+  #endif
   use m_exchangearray, only: exchangeArray
 
   implicit none
@@ -78,6 +81,8 @@ contains
     implicit none
     integer                 :: i
     character(len=STR_MAX)  :: var_name
+    real :: slice_tmp
+
     call getInput('slice_output', 'enable', slice_output_enable, .false.)
     call getInput('slice_output', 'start', slice_output_start, 0)
     call getInput('slice_output', 'interval', slice_output_interval, 10)
@@ -89,39 +94,56 @@ contains
     slice_axes(:) = -1
     slice_pos(:) = -1
 
-    do i = 1, 100
+    do i = 1, 9
       write (var_name, "(A7,I1)") "sliceX_", i
-      call getInput('slice_output', var_name, slice_pos(nslices + 1), -1)
-      if (slice_pos(nslices + 1) .ne. -1) then
-        nslices = nslices + 1
-        slice_axes(nslices) = 1
+      call getInput('slice_output', var_name, slice_tmp, -1.0)
+      if ((slice_tmp .gt. 0.0) .and. (slice_tmp .lt. 1.0)) then
+        slice_pos(nslices + 1) = INT(global_mesh%sx * slice_tmp) 
+      else if (slice_tmp .ge. 0.0) then
+        slice_pos(nslices + 1) = INT(slice_tmp) 
       else
         exit
       end if
+      nslices = nslices + 1
+      slice_axes(nslices) = 1
+      if ((slice_pos(nslices) .lt. 0) .or. (slice_pos(nslices) .ge. global_mesh%sx)) then
+        call throwError("ERROR: slice x position specified wrong.")
+      end if
     end do
 
-    do i = 1, 100
+    do i = 1, 9
       write (var_name, "(A7,I1)") "sliceY_", i
-      call getInput('slice_output', var_name, slice_pos(nslices + 1), -1)
-      if (slice_pos(nslices + 1) .ne. -1) then
-        nslices = nslices + 1
-        slice_axes(nslices) = 2
+      call getInput('slice_output', var_name, slice_tmp, -1.0)
+      if ((slice_tmp .gt. 0.0) .and. (slice_tmp .lt. 1.0)) then
+        slice_pos(nslices + 1) = INT(global_mesh%sy * slice_tmp) 
+      else if (slice_tmp .ge. 0.0) then
+        slice_pos(nslices + 1) = INT(slice_tmp) 
       else
         exit
       end if
+      nslices = nslices + 1
+      slice_axes(nslices) = 2
+      if ((slice_pos(nslices) .lt. 0) .or. (slice_pos(nslices) .ge. global_mesh%sy)) then
+        call throwError("ERROR: slice y position specified wrong.")
+      end if
     end do
 
-    do i = 1, 100
+    do i = 1, 9
       write (var_name, "(A7,I1)") "sliceZ_", i
-      call getInput('slice_output', var_name, slice_pos(nslices + 1), -1)
-      if (slice_pos(nslices + 1) .ne. -1) then
-        nslices = nslices + 1
-        slice_axes(nslices) = 3
+      call getInput('slice_output', var_name, slice_tmp, -1.0)
+      if ((slice_tmp .gt. 0.0) .and. (slice_tmp .lt. 1.0)) then
+        slice_pos(nslices + 1) = INT(global_mesh%sz * slice_tmp) 
+      else if (slice_tmp .ge. 0.0) then
+        slice_pos(nslices + 1) = INT(slice_tmp) 
       else
         exit
       end if
+      nslices = nslices + 1
+      slice_axes(nslices) = 3
+      if ((slice_pos(nslices) .lt. 0) .or. (slice_pos(nslices) .ge. global_mesh%sz)) then
+        call throwError("ERROR: slice z position specified wrong.")
+      end if
     end do
-
   end subroutine initializeSlice
 
   subroutine prepareOutput()
@@ -164,9 +186,8 @@ contains
     ! initialize domain output variables
     !   FIX1: maybe add # of particles per domain
     n_dom_vars = 6
-    dom_vars(1 : 6) = (/'x0   ', 'y0   ', 'z0   ',&
-                      & 'sx   ', 'sy   ', 'sz   '/)
-
+    dom_vars(1 : n_dom_vars) = (/'x0   ', 'y0   ', 'z0   ',&
+                               & 'sx   ', 'sy   ', 'sz   '/)
   end subroutine prepareOutput
 
   subroutine prepareSpectraForOutput()
@@ -177,6 +198,9 @@ contains
     integer                   :: ierr, root_rnk
     real, allocatable         :: spectra(:,:,:,:,:)
     real, allocatable         :: send_spec(:,:,:,:), recv_spec(:,:,:,:)
+    #ifdef GCA
+      real, allocatable         :: gca_spectra(:,:,:,:,:)
+    #endif
 
     root_rnk = 0
 
@@ -216,11 +240,22 @@ contains
       if (.not. allocated(glob_spectra)) then
         allocate(glob_spectra(nspec, spec_nx, spec_ny, spec_nz, spec_num))
       end if
+
+      #ifdef GCA
+        if (.not. allocated(glob_gca_spectra)) then
+          allocate(glob_gca_spectra(2 * nspec, spec_nx, spec_ny, spec_nz, spec_num))
+        end if
+      #endif
     end if
 
     allocate(spectra(nspec, spec_nx, spec_ny, spec_nz, spec_num))
     allocate(send_spec(spec_nx, spec_ny, spec_nz, spec_num), recv_spec(spec_nx, spec_ny, spec_nz, spec_num))
     spectra(:,:,:,:,:) = 0
+
+    #ifdef GCA
+      allocate(gca_spectra(2 * nspec, spec_nx, spec_ny, spec_nz, spec_num))
+      gca_spectra(:,:,:,:,:) = 0
+    #endif
 
     do s = 1, nspec
       do ti = 1, species(s)%tile_nx
@@ -261,6 +296,20 @@ contains
 
               spectra(s, spec_x_index, spec_y_index, spec_z_index, spec_index) =&
                     & spectra(s, spec_x_index, spec_y_index, spec_z_index, spec_index) + species(s)%prtl_tile(ti, tj, tk)%weight(p)
+
+              #ifdef GCA
+                if (species(s)%prtl_tile(ti, tj, tk)%proc(p) .ge. mpi_size) then
+                  ! particle doing GCA
+                  gca_spectra(nspec + s, spec_x_index, spec_y_index, spec_z_index, spec_index) =&
+                      & gca_spectra(nspec + s, spec_x_index, spec_y_index, spec_z_index, spec_index) +&
+                                                              & species(s)%prtl_tile(ti, tj, tk)%weight(p)
+                else
+                  ! particle doing normal push
+                  gca_spectra(s, spec_x_index, spec_y_index, spec_z_index, spec_index) =&
+                      & gca_spectra(s, spec_x_index, spec_y_index, spec_z_index, spec_index) +&
+                                                              & species(s)%prtl_tile(ti, tj, tk)%weight(p)
+                end if
+              #endif
             end do
           end do
         end do
@@ -276,11 +325,30 @@ contains
         glob_spectra(s,:,:,:,:) = recv_spec(:,:,:,:)
       end if
 
+      #ifdef GCA
+        send_spec(:,:,:,:) = gca_spectra(s,:,:,:,:)
+        call MPI_REDUCE(send_spec, recv_spec, spec_nx * spec_ny * spec_nz * spec_num, MPI_REAL,&
+                      & MPI_SUM, root_rnk, MPI_COMM_WORLD, ierr)
+
+        send_spec(:,:,:,:) = gca_spectra(nspec + s,:,:,:,:)
+        call MPI_REDUCE(send_spec, recv_spec, spec_nx * spec_ny * spec_nz * spec_num, MPI_REAL,&
+                      & MPI_SUM, root_rnk, MPI_COMM_WORLD, ierr)
+
+        if (mpi_rank .eq. root_rnk) then
+          glob_gca_spectra(s,:,:,:,:) = recv_spec(:,:,:,:)
+          glob_gca_spectra(nspec + s,:,:,:,:) = recv_spec(:,:,:,:)
+        end if
+      #endif
+
     end do
 
     if (allocated(spectra)) deallocate(spectra)
     if (allocated(send_spec)) deallocate(send_spec)
     if (allocated(recv_spec)) deallocate(recv_spec)
+    #ifdef GCA
+      if (allocated(gca_spectra)) deallocate(gca_spectra)
+    #endif
+
   end subroutine prepareSpectraForOutput
 
   subroutine defineFieldVarsToOutput()
@@ -303,16 +371,21 @@ contains
         fld_vars(n_fld_vars + 1) = 'nprt' // STR(s)
         n_fld_vars = n_fld_vars + 1
       end if
+      #ifdef GCA
+        fld_vars(n_fld_vars + 1) = 'dgca' // STR(s)
+        n_fld_vars = n_fld_vars + 1
+      #endif
     end do
 
-    fld_vars(n_fld_vars + 1 : n_fld_vars + 1 + 11) =&
+    fld_vars(n_fld_vars + 1 : n_fld_vars + 1 + 15 - 1) =&
                                  & (/'ex   ', 'ey   ', 'ez   ',&
                                    & 'bx   ', 'by   ', 'bz   ',&
                                    & 'jx   ', 'jy   ', 'jz   ',&
+                                   & 'velx ', 'vely ', 'velz ',&
                                    & 'xx   ', 'yy   ', 'zz   '/)
-    n_fld_vars = n_fld_vars + 12
+    n_fld_vars = n_fld_vars + 15
     if (derivatives_enable) then
-      fld_vars(n_fld_vars + 1 : n_fld_vars + 1 + 3) = (/'crlBx', 'crlBy', 'crlBz', 'divE '/)
+      fld_vars(n_fld_vars + 1 : n_fld_vars + 1 + 4 - 1) = (/'curlBx', 'curlBy', 'curlBz', 'divE'/)
       n_fld_vars = n_fld_vars + 4
     end if
   end subroutine defineFieldVarsToOutput
@@ -390,7 +463,7 @@ contains
         jz0 = jz(i, j, k)
       #endif
       sm_arr(i1, j1, k1) = -jz0 * B_norm
-    case('crlBx')
+    case('curlBx')
       #ifdef oneD
         dx1 = 0.0; dx2 = 0.0
       #elif twoD
@@ -401,7 +474,7 @@ contains
         dx2 = (bz(i - 1,    j,    k) - bz(i - 1,j - 1,    k)) - (by(i - 1,    j,    k) - by(i - 1,    j,k - 1))
       #endif
       sm_arr(i1, j1, k1) = B_norm * 0.5 * (dx1 + dx2)
-    case('crlBy')
+    case('curlBy')
       #ifdef oneD
         dy1 = -(bz(i, j, k) - bz(i - 1, j, k))
         dy2 = dy1
@@ -413,7 +486,7 @@ contains
         dy2 = (bx(    i,j - 1,    k) - bx(    i,j - 1,k - 1)) - (bz(    i,j - 1,    k) - bz(i - 1,j - 1,    k))
       #endif
       sm_arr(i1, j1, k1) = B_norm * 0.5 * (dy1 + dy2)
-    case('crlBz')
+    case('curlBz')
       #ifdef oneD
         dz1 = (by(i, j, k) - by(i - 1, j, k))
         dz2 = dz1
@@ -430,11 +503,9 @@ contains
       #if defined(oneD) || defined (twoD) || defined (threeD)
         divE = divE + (ex(i, j, k) - ex(i - 1, j, k))
       #endif
-
       #if defined(twoD) || defined (threeD)
         divE = divE + (ey(i, j, k) - ey(i, j - 1, k))
       #endif
-
       #if defined(threeD)
         divE = divE + (ez(i, j, k) - ez(i, j, k - 1))
       #endif
@@ -449,7 +520,9 @@ contains
       if (((fld_var(1:4) .ne. 'dens') .and.&
          & (fld_var(1:4) .ne. 'enrg') .and.&
          & (fld_var(1:3) .ne. 'mom') .and.&
-         & (fld_var(1:4) .ne. 'nprt')) .and.&
+         & (fld_var(1:4) .ne. 'nprt') .and.&
+         & (fld_var(1:3) .ne. 'vel') .and.&
+         & (fld_var(1:4) .ne. 'dgca')) .or.&
          & (.not. writing_lgarrQ)) then
         call throwError("ERROR: unrecognized `fldname`: " // trim(fld_var))
       else
@@ -468,6 +541,7 @@ contains
         else
           sm_arr(i1, j1, k1) = lg_arr(i, j, k)
         end if
+
       end if
     end select
   end subroutine selectFieldForOutput
@@ -488,27 +562,53 @@ contains
       writing_lgarrQ = .true.
       s = STRtoINT(fldname(5:5))
       ! fill `lg_arr` with energy density of species `s`
-      call computeMomentum(s, 0, reset=.true., ds=output_dens_smooth)
+      call computeMomentum(s, component=0, reset=.true., ds=output_dens_smooth)
       call exchangeArray()
+    else if (fldname(1:3) .eq. 'vel') then
+      writing_lgarrQ = .true.
+      ! fill `lg_arr` with 3-velocity components of all massive/charged species
+      if (fldname(4:4) .eq. 'x') then
+        call computeFluidVelocity(component=0, ds=output_dens_smooth)
+      else if (fldname(4:4) .eq. 'y') then
+        call computeFluidVelocity(component=1, ds=output_dens_smooth)
+      else if (fldname(4:4) .eq. 'z') then
+        call computeFluidVelocity(component=2, ds=output_dens_smooth)
+      else
+        call throwError('ERROR: unknown component in `vel` output:' // trim(fldname(4:4)) // '.')
+      end if
+      call exchangeArray()
+      ! save the sum of 3-velocities to `jz_buff`
+      jz_buff(:,:,:) = lg_arr(:,:,:)
+      call computeFluidDensity(ds=output_dens_smooth)
+      call exchangeArray()
+      ! save the average 3-velocities to `lg_arr`
+      lg_arr(:,:,:) = jz_buff(:,:,:) / (lg_arr(:,:,:) + TINYFLD)
     else if (fldname(1:4) .eq. 'nprt') then
       writing_lgarrQ = .true.
       s = STRtoINT(fldname(5:5))
       call computeNpart(s, reset=.true., ds=output_dens_smooth)
       call exchangeArray()
-    else if (fldname(1:4) .eq. 'momX') then
+    else if (fldname(1:4) .eq. 'dgca') then
       writing_lgarrQ = .true.
       s = STRtoINT(fldname(5:5))
-      call computeMomentum(s, 1, reset=.true., ds=output_dens_smooth)
-      call exchangeArray()
-    else if (fldname(1:4) .eq. 'momY') then
+      #ifndef GCA
+        call throwError('ERROR: `dgca` not defined without GCA flag.')
+      #else
+        call computeDensityGCA(s, reset=.true., ds=output_dens_smooth)
+        call exchangeArray()
+      #endif
+    else if (fldname(1:3) .eq. 'mom') then
       writing_lgarrQ = .true.
       s = STRtoINT(fldname(5:5))
-      call computeMomentum(s, 2, reset=.true., ds=output_dens_smooth)
-      call exchangeArray()
-    else if (fldname(1:4) .eq. 'momZ') then
-      writing_lgarrQ = .true.
-      s = STRtoINT(fldname(5:5))
-      call computeMomentum(s, 3, reset=.true., ds=output_dens_smooth)
+      if (fldname(4:4) .eq. 'X') then
+        call computeMomentum(s, component=1, reset=.true., ds=output_dens_smooth)
+      else if (fldname(4:4) .eq. 'Y') then
+        call computeMomentum(s, component=2, reset=.true., ds=output_dens_smooth)
+      else if (fldname(4:4) .eq. 'Z') then
+        call computeMomentum(s, component=3, reset=.true., ds=output_dens_smooth)
+      else
+        call throwError('ERROR: unknown component in `mom` output:' // trim(fldname(4:4)) // '.')
+      end if
       call exchangeArray()
     else
       writing_lgarrQ = .false.

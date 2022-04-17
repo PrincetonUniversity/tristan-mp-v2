@@ -1,7 +1,7 @@
 ! this "function" takes `dx`, `dy`, `dz` and `lind` ...
 ! ... and "returns" `ex0`, `ey0`, `ez0`
 
-! linear indices used isntead of 3d
+! linear indices used instead of 3d
 #ifdef oneD
   !e_x
   c0 = 0.5 * (ex(lind, 0, 0) + ex(lind - 1, 0, 0))

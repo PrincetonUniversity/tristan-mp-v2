@@ -45,7 +45,7 @@ contains
       call writeDiagnostics(step, time)
     end if
 
-    call printDiag((mpi_rank .eq. 0), "tot_output()", .true.)
+    call printDiag("writeTotOutput()", 2)
     tot_output_index = tot_output_index + 1
   end subroutine writeTotOutput
 

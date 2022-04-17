@@ -25,11 +25,9 @@ module m_domain
     #if defined(oneD) || defined (twoD) || defined (threeD)
       real     :: x_min, x_max
     #endif
-
     #if defined(twoD) || defined (threeD)
       real     :: y_min, y_max
     #endif
-
     #if defined(threeD)
       real     :: z_min, z_max
     #endif
@@ -46,7 +44,7 @@ module m_domain
   integer                            :: sendrecv_neighbors
 
   ! loadbalancing variables
-  type(mesh), allocatable :: new_meshblocks(:)
+  type(mesh), allocatable, target    :: new_meshblocks(:)
 
   ! global constants for SLB
   logical :: slb_x, slb_y, slb_z
@@ -57,6 +55,7 @@ module m_domain
   integer :: alb_sxmin, alb_symin, alb_szmin
   integer :: alb_int_x, alb_int_y, alb_int_z
   integer :: alb_start_x, alb_start_y, alb_start_z
+  integer :: alb_slab_x, alb_slab_y, alb_slab_z
 
   ! load per each MPI process
   integer :: lb_load

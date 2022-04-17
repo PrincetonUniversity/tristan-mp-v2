@@ -15,6 +15,10 @@ module m_writespectra
   use m_particles
   use m_exchangearray, only: exchangeArray
 
+  #ifdef GCA
+    use m_outputnamespace, only: glob_gca_spectra
+  #endif
+
   implicit none
 
   !--- PRIVATE functions -----------------------------------------!
@@ -30,7 +34,7 @@ contains
     #ifdef HDF5
       call writeSpectra_hdf5(step, time)
     #endif
-    call printDiag((mpi_rank .eq. 0), "...writeSpectra()", .true.)
+    call printDiag("writeSpectra()", 3)
   end subroutine writeSpectra
 
   #ifdef HDF5
@@ -120,6 +124,26 @@ contains
           call h5dwrite_f(dset_id, H5T_NATIVE_REAL, glob_spectra(s,:,:,:,:), spec_dims, error)
           call h5dclose_f(dset_id, error)
           call h5sclose_f(dspace_id, error)
+
+          #ifdef GCA
+            ! writing spectra:
+            dsetname = 'nbor' // trim(STR(s))
+            call h5screate_simple_f(4, spec_dims, dspace_id, error)
+            call h5dcreate_f(file_id, dsetname, H5T_NATIVE_REAL, dspace_id, &
+                           & dset_id, error)
+            call h5dwrite_f(dset_id, H5T_NATIVE_REAL, glob_gca_spectra(s,:,:,:,:), spec_dims, error)
+            call h5dclose_f(dset_id, error)
+            call h5sclose_f(dspace_id, error)
+
+            ! writing spectra:
+            dsetname = 'ngca' // trim(STR(s))
+            call h5screate_simple_f(4, spec_dims, dspace_id, error)
+            call h5dcreate_f(file_id, dsetname, H5T_NATIVE_REAL, dspace_id, &
+                           & dset_id, error)
+            call h5dwrite_f(dset_id, H5T_NATIVE_REAL, glob_gca_spectra(nspec + s,:,:,:,:), spec_dims, error)
+            call h5dclose_f(dset_id, error)
+            call h5sclose_f(dspace_id, error)
+          #endif
         end do
 
         ! Close the file
@@ -133,6 +157,9 @@ contains
         if (allocated(zbin_data)) deallocate(zbin_data)
 
         if (allocated(glob_spectra)) deallocate(glob_spectra)
+        #ifdef GCA
+          if (allocated(glob_gca_spectra)) deallocate(glob_gca_spectra)
+        #endif
       end if
     end subroutine writeSpectra_hdf5
   #endif

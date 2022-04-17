@@ -7,36 +7,51 @@ module m_initialize
   use m_globalnamespace
   use m_outputnamespace, only: tot_output_index, slice_index,&
                              & tot_output_enable, slice_output_enable, hst_enable
-  use m_writerestart, only: rst_simulation, rst_enable
-  use m_aux
-  use m_readinput
-  use m_domain
-  use m_loadbalancing
-  use m_particles
-  use m_particlelogistics
-  use m_fields
-  use m_userfile, only: userReadInput, userInitParticles,&
-                      & userInitFields, user_slb_load_ptr => userSLBload
-  use m_outputlogistics, only: initializeOutput, initializeSlice
-  use m_writehistory, only: initializeHistory
-  use m_writerestart, only: initializeRestart
   use m_helpers
   use m_errors
+
+  use m_aux
+  use m_readinput, only: getInput, readCommandlineArgs
+
+  use m_domain
+  use m_loadbalancing, only: initializeLB
+  #ifdef SLB
+    use m_staticlb, only: redistributeMeshblocksSLB
+  #endif
+
+  use m_fieldlogistics, only: initializeFields
+  use m_particlelogistics, only: initializeParticles
+  use m_exchangeparts, only: initializePrtlExchange
+
+  use m_userfile, only: userReadInput, userInitParticles, userInitFields
+
+  #ifdef SLB
+    use m_userfile, only: user_slb_load_ptr => userSLBload
+  #endif
+
+  use m_outputlogistics, only: initializeOutput, initializeSlice
+  use m_writehistory, only: initializeHistory
+
+  #ifdef USROUTPUT
+    use m_writeusroutput, only: initializeUsrOutput
+  #endif
+
+  use m_restart, only: initializeRestart, restartSimulation, rst_simulation, rst_enable
+
   use m_particlebinning
 
   #ifdef DOWNSAMPLING
     use m_particledownsampling
   #endif
+
   implicit none
 
   !--- PRIVATE functions -----------------------------------------!
   private :: initializeCommunications, initializeOutput,&
-           & firstRankInitialize, initializeParticles,&
-           & initializeLB, printParams, initializeSlice,&
+           & initializeDirectories,&
+           & printParams, initializeSlice,&
            & distributeMeshblocks, initializeDomain,&
-           & initializePrtlExchange, initializeFields,&
-           & initializeSimulation, checkEverything,&
-           & restartSimulation
+           & initializeSimulation, checkEverything
 
   #ifdef DOWNSAMPLING
     private :: initializeDownsampling
@@ -50,79 +65,61 @@ contains
 
     ! initializing the simulation parameters class ...
     ! ... which stores all the input values for the simulation
-    sim_params%count = 0
-    allocate(sim_params%param_type(1000))
-    allocate(sim_params%param_group(1000))
-    allocate(sim_params%param_name(1000))
-    allocate(sim_params%param_value(1000))
+    call initializeSimulationParameters()
+    call initializeWarnings()
 
     call initializeDomain()
 
     call initializeCommunications()
-      call printDiag((mpi_rank .eq. 0), "initializeCommunications()", .true.)
+
+    call getInput('particles', 'nspec', nspec, 2)
+
+    call initializeOutput()
+    call initializeHistory()
+    #ifdef USROUTPUT
+      call initializeUsrOutput()
+    #endif
+    call initializeSlice()
+    call initializeRestart()
+    call initializeDirectories()
+    call initializeSimulation()
 
     call distributeMeshblocks()
-      call printDiag((mpi_rank .eq. 0), "distributeMeshblocks()", .true.)
+
+    call userReadInput()
 
     call initializeLB()
-      call printDiag((mpi_rank .eq. 0), "initializeLB()", .true.)
 
     #ifdef SLB
       call redistributeMeshblocksSLB(user_slb_load_ptr)
-        call printDiag((mpi_rank .eq. 0), "redistributeMeshblocksSLB()", .true.)
     #endif
 
-    call initializeSimulation()
-      call printDiag((mpi_rank .eq. 0), "initializeSimulation()", .true.)
-
-    call initializeOutput()
-      call printDiag((mpi_rank .eq. 0), "initializeOutput()", .true.)
-    call initializeHistory()
-      call printDiag((mpi_rank .eq. 0), "initializeHistory()", .true.)
-    call initializeSlice()
-      call printDiag((mpi_rank .eq. 0), "initializeSlice()", .true.)
-    call initializeRestart()
-      call printDiag((mpi_rank .eq. 0), "initializeRestart()", .true.)
-
     call initializeFields()
-      call printDiag((mpi_rank .eq. 0), "initializeFields()", .true.)
 
     call initializeParticles()
-      call printDiag((mpi_rank .eq. 0), "initializeParticles()", .true.)
 
     #ifdef DOWNSAMPLING
       call initializeDownsampling()
-        call printDiag((mpi_rank .eq. 0), "initializeDownsampling()", .true.)
     #endif
 
     call initializePrtlExchange()
-      call printDiag((mpi_rank .eq. 0), "initializePrtlExchange()", .true.)
 
     call initializeRandomSeed(mpi_rank)
-      call printDiag((mpi_rank .eq. 0), "initializeRandomSeed()", .true.)
-
-    if (mpi_rank .eq. 0) then
-      call firstRankInitialize()
-      call printDiag(.true., "firstRankInitialize()", .true.)
-    end if
 
     if (.not. rst_simulation) then
-      call userReadInput()
       call userInitParticles()
       call userInitFields()
-        call printDiag((mpi_rank .eq. 0), "userInitialize()", .true.)
+        call printDiag("userInitialize()", 1)
     else
-      call userReadInput()
       call restartSimulation()
-        call printDiag((mpi_rank .eq. 0), "restartSimulation()", .true.)
     end if
+    call userReadInput()
 
     call checkEverything()
-      call printDiag((mpi_rank .eq. 0), "checkEverything()", .true.)
 
     call printParams()
 
-    call printReport((mpi_rank .eq. 0), "InitializeAll()")
+    call printDiag("InitializeAll()", 0)
   end subroutine initializeAll
 
   subroutine printParams()
@@ -211,12 +208,10 @@ contains
       call getInput('node_configuration', 'sizex', sizex)
       call getInput('grid', 'mx0', global_mesh%sx)
     #endif
-
     #if defined(twoD) || defined (threeD)
       call getInput('node_configuration', 'sizey', sizey)
       call getInput('grid', 'my0', global_mesh%sy)
     #endif
-    
     #if defined(threeD)
       call getInput('node_configuration', 'sizez', sizez)
       call getInput('grid', 'mz0', global_mesh%sz)
@@ -283,49 +278,10 @@ contains
       meshblocks(rnk + 1)%z0 = ind(3) * m(3) + global_mesh%z0
     end do
     ! assign all neighbors
-    call reassignNeighborsForAll()
+    call reassignNeighborsForAll(meshblocks)
+
+    call printDiag("distributeMeshblocks()", 1)
   end subroutine distributeMeshblocks
-
-  subroutine initializeLB()
-    implicit none
-    ! initializing static LB variables
-    slb_x = .false.; slb_sxmin = -1
-    slb_y = .false.; slb_symin = -1
-    slb_z = .false.; slb_szmin = -1
-
-    alb_x = .false.; alb_sxmin = -1; alb_int_x = -1; alb_start_x = -1
-    alb_y = .false.; alb_symin = -1; alb_int_y = -1; alb_start_y = -1
-    alb_z = .false.; alb_szmin = -1; alb_int_z = -1; alb_start_z = -1
-    #if defined(oneD) || defined (twoD) || defined (threeD)
-      call getInput('static_load_balancing', 'in_x', slb_x, .false.)
-      call getInput('static_load_balancing', 'sx_min', slb_sxmin, 10)
-
-      call getInput('adaptive_load_balancing', 'in_x', alb_x, .false.)
-      call getInput('adaptive_load_balancing', 'sx_min', alb_sxmin, 10)
-      call getInput('adaptive_load_balancing', 'interval_x', alb_int_x, 1000)
-      call getInput('adaptive_load_balancing', 'start_x', alb_start_x, 0)
-    #endif
-
-    #if defined(twoD) || defined (threeD)
-      call getInput('static_load_balancing', 'in_y', slb_y, .false.)
-      call getInput('static_load_balancing', 'sy_min', slb_symin, 10)
-
-      call getInput('adaptive_load_balancing', 'in_y', alb_y, .false.)
-      call getInput('adaptive_load_balancing', 'sy_min', alb_symin, 10)
-      call getInput('adaptive_load_balancing', 'interval_y', alb_int_y, 1000)
-      call getInput('adaptive_load_balancing', 'start_y', alb_start_y, 0)
-    #endif
-
-    #if defined(threeD)
-      call getInput('static_load_balancing', 'in_z', slb_z, .false.)
-      call getInput('static_load_balancing', 'sz_min', slb_szmin, 10)
-
-      call getInput('adaptive_load_balancing', 'in_z', alb_z, .false.)
-      call getInput('adaptive_load_balancing', 'sz_min', alb_szmin, 10)
-      call getInput('adaptive_load_balancing', 'interval_z', alb_int_z, 1000)
-      call getInput('adaptive_load_balancing', 'start_z', alb_start_z, 0)
-    #endif
-  end subroutine initializeLB
 
   subroutine initializeSimulation()
     implicit none
@@ -343,480 +299,52 @@ contains
     call getInput('plasma', 'c_omp', c_omp)
     call renormalizeUnits()
 
+    #ifdef GCA
+      call getInput('algorithm', 'gca_rhoL', gca_rhomin)
+      call getInput('algorithm', 'gca_EoverB', gca_eoverbmin)
+      call getInput('algorithm', 'gca_vperpMax', gca_vperpmax)
+      call getInput('algorithm', 'gca_enforce_mu0', gca_enforce_mu0)
+    #endif
+
     call getInput('grid', 'resize_tiles', resize_tiles, .false.)
     call getInput('grid', 'min_tile_nprt', min_tile_nprt, 100)
+
+    call printDiag("initializeSimulation()", 1)
   end subroutine initializeSimulation
 
-  subroutine initializeParticles()
-    implicit none
-    integer                 :: s, ti, tj, tk
-    character(len=STR_MAX)  :: var_name
-    integer                 :: maxptl_
-
-    call getInput('particles', 'nspec', nspec, 2)
-
-    allocate(species(nspec))
-    do s = 1, nspec
-      #ifdef oneD
-        call getInput('grid', 'tileX', species(s)%tile_sx)
-        species(s)%tile_sy = 1
-        species(s)%tile_sz = 1
-      #elif twoD
-        call getInput('grid', 'tileX', species(s)%tile_sx)
-        call getInput('grid', 'tileY', species(s)%tile_sy)
-        species(s)%tile_sz = 1
-      #elif threeD
-        call getInput('grid', 'tileX', species(s)%tile_sx)
-        call getInput('grid', 'tileY', species(s)%tile_sy)
-        call getInput('grid', 'tileZ', species(s)%tile_sz)
-      #endif
-      species(s)%tile_nx = ceiling(real(this_meshblock%ptr%sx) / real(species(s)%tile_sx))
-      species(s)%tile_ny = ceiling(real(this_meshblock%ptr%sy) / real(species(s)%tile_sy))
-      species(s)%tile_nz = ceiling(real(this_meshblock%ptr%sz) / real(species(s)%tile_sz))
-      allocate(species(s)%prtl_tile(species(s)%tile_nx,&
-                                  & species(s)%tile_ny,&
-                                  & species(s)%tile_nz))
-    end do
-
-    do s = 1, nspec
-      write (var_name, "(A6,I1)") "maxptl", s
-      call getInput('particles', var_name, maxptl_)
-      write (var_name, "(A1,I1)") "m", s
-      call getInput('particles', var_name, species(s)%m_sp)
-      write (var_name, "(A2,I1)") "ch", s
-      call getInput('particles', var_name, species(s)%ch_sp)
-
-      write (var_name, "(A7,I1)") "deposit", s
-      call getInput('particles', var_name, species(s)%deposit_sp, (species(s)%ch_sp .ne. 0))
-      write (var_name, "(A4,I1)") "move", s
-      call getInput('particles', var_name, species(s)%move_sp, .true.)
-      write (var_name, "(A6,I1)") "output", s
-      call getInput('particles', var_name, species(s)%output_sp, .true.)
-
-      if ((species(s)%m_sp .eq. 0) .and. (species(s)%ch_sp .ne. 0)) then
-        call throwError('ERROR: massless charged particles are not allowed')
-      end if
-      if ((species(s)%m_sp .ne. 0) .and. (species(s)%ch_sp .eq. 0)) then
-        call throwError('ERROR: massive zero-charge particles are not allowed')
-      end if
-      if ((species(s)%ch_sp .eq. 0) .and. (species(s)%deposit_sp)) then
-        call throwError('ERROR: zero-charged particles cannot deposit current')
-      end if
-
-      #ifdef DOWNSAMPLING
-        write (var_name, "(A3,I1)") "dwn", s
-        call getInput('particles', var_name, species(s)%dwn_sp, .false.)
-      #endif
-
-      ! extra physics properties
-
-      do ti = 1, species(s)%tile_nx
-        do tj = 1, species(s)%tile_ny
-          do tk = 1, species(s)%tile_nz
-            call createEmptyTile(s, ti, tj, tk, maxptl_)
-          end do
-        end do
-      end do
-      species(s)%cntr_sp = 0
-    end do
-  end subroutine initializeParticles
-
-  subroutine initializePrtlExchange()
-    implicit none
-    integer             :: buffsize, buffsize_x, buffsize_y
-    integer             :: buffsize_xy
-    integer             :: buffsize_z, buffsize_xz, buffsize_yz
-    integer             :: buffsize_xyz
-    integer             :: multiplier, ierr, ind1, ind2, ind3, ind
-    integer             :: additional_real, additional_int, additional_int2
-
-    #ifdef MPI08
-      type(MPI_DATATYPE), dimension(0:2)            :: oldtypes
-    #endif
-
-    #ifdef MPI
-      integer, dimension(0:2)                       :: oldtypes
-    #endif
-
-    integer, dimension(0:2)                         :: blockcounts
-    integer(kind=MPI_ADDRESS_KIND), dimension(0:2)  :: offsets
-    integer(kind=MPI_ADDRESS_KIND)                  :: extent_int2, extent_real, lb
-
-    call getInput('grid', 'max_buff', max_buffsize, 100)
-
-    multiplier = max(INT(ppc0), 1) * max_buffsize
-    ! FIX this might change over time (due to load balancing)
-    buffsize_x = 0
-    buffsize_y = 0; buffsize_xy = 0
-    buffsize_z = 0; buffsize_xz = 0; buffsize_yz = 0; buffsize_xyz = 0
-    #if defined (oneD) || defined (twoD) || defined (threeD)
-      buffsize_x = this_meshblock%ptr%sy * this_meshblock%ptr%sz * multiplier
-    #endif
-
-    #if defined (twoD) || defined (threeD)
-      buffsize_y = this_meshblock%ptr%sx * this_meshblock%ptr%sz * multiplier
-      buffsize_xy = this_meshblock%ptr%sz * multiplier
-    #endif
-
-    #if defined(threeD)
-      buffsize_z = this_meshblock%ptr%sx * this_meshblock%ptr%sy * multiplier
-      buffsize_xz = this_meshblock%ptr%sz * multiplier
-      buffsize_yz = this_meshblock%ptr%sx * multiplier
-      buffsize_xyz = multiplier
-    #endif
-
-    #ifdef oneD
-      buffsize = multiplier
-    #elif twoD
-      buffsize = MAX0(this_meshblock%ptr%sx, this_meshblock%ptr%sy, this_meshblock%ptr%sz) * multiplier
-    #elif threeD
-      buffsize = MAX0(this_meshblock%ptr%sx, this_meshblock%ptr%sy, this_meshblock%ptr%sz)**2 * multiplier
-    #endif
-
-    allocate(recv_enroute(buffsize))
-
-    do ind1 = -1, 1
-      do ind2 = -1, 1
-        do ind3 = -1, 1
-          if ((ind1 .eq. 0) .and. (ind2 .eq. 0) .and. (ind3 .eq. 0)) cycle
-          #ifdef oneD
-            if ((ind2 .ne. 0) .or. (ind3 .ne. 0)) cycle
-          #elif twoD
-            if (ind3 .ne. 0) cycle
-          #endif
-          if ((ind2 .eq. 0) .and. (ind3 .eq. 0)) then
-            buffsize = buffsize_x
-          else if ((ind1 .eq. 0) .and. (ind3 .eq. 0)) then
-            buffsize = buffsize_y
-          else if ((ind1 .eq. 0) .and. (ind2 .eq. 0)) then
-            buffsize = buffsize_z
-          else if (ind3 .eq. 0) then
-            buffsize = buffsize_xy
-          else if (ind2 .eq. 0) then
-            buffsize = buffsize_xz
-          else if (ind1 .eq. 0) then
-            buffsize = buffsize_yz
-          else
-            buffsize = buffsize_xyz
-          end if
-          enroute_bot%get(ind1, ind2, ind3)%max_send = buffsize
-          allocate(enroute_bot%get(ind1, ind2, ind3)%send_enroute(buffsize))
-        end do
-      end do
-    end do
-
-    ! DEP_PRT [particle-dependent]
-    ! new type for myMPI_ENROUTE
-    additional_real = 0; additional_int = 0; additional_int2 = 0
-
-    call MPI_TYPE_GET_EXTENT(MPI_INTEGER2, lb, extent_int2, ierr)
-    call MPI_TYPE_GET_EXTENT(MPI_REAL, lb, extent_real, ierr)
-
-    #ifdef PRTLPAYLOADS
-      additional_real = additional_real + 3
-    #endif
-
-    !     # of blockcounts = 3:
-    !       3  x integer2  [xi, yi, zi]
-    !       7  x real      [dx, dy, dz, u, v, w, weight]
-    !                                                         | + 3 if PRTLPAYLOADS
-    !       2  x integer   [ind, proc]
-    blockcounts(0) = 3 + additional_int2
-    oldtypes(0) = MPI_INTEGER2
-    blockcounts(1) = 7 + additional_real
-    oldtypes(1) = MPI_REAL
-    blockcounts(2) = 2 + additional_int
-    oldtypes(2) = MPI_INTEGER
-
-    offsets(0) = 0
-    offsets(1) = blockcounts(0) * extent_int2 + offsets(0)
-    offsets(2) = blockcounts(1) * extent_real + offsets(1)
-    call MPI_TYPE_CREATE_STRUCT(3, blockcounts, offsets, oldtypes, myMPI_ENROUTE, ierr)
-    call MPI_TYPE_COMMIT(myMPI_ENROUTE, ierr)
-  end subroutine initializePrtlExchange
-
-  subroutine initializeFields()
-    implicit none
-    if (allocated(ex)) deallocate(ex)
-    if (allocated(ey)) deallocate(ey)
-    if (allocated(ez)) deallocate(ez)
-    if (allocated(bx)) deallocate(bx)
-    if (allocated(by)) deallocate(by)
-    if (allocated(bz)) deallocate(bz)
-    if (allocated(jx)) deallocate(jx)
-    if (allocated(jy)) deallocate(jy)
-    if (allocated(jz)) deallocate(jz)
-    if (allocated(jx_buff)) deallocate(jx_buff)
-    if (allocated(jy_buff)) deallocate(jy_buff)
-    if (allocated(jz_buff)) deallocate(jz_buff)
-    #ifdef oneD
-      allocate(ex(-NGHOST : this_meshblock%ptr%sx - 1 + NGHOST, 0:0, 0:0))
-      allocate(ey(-NGHOST : this_meshblock%ptr%sx - 1 + NGHOST, 0:0, 0:0))
-      allocate(ez(-NGHOST : this_meshblock%ptr%sx - 1 + NGHOST, 0:0, 0:0))
-      allocate(bx(-NGHOST : this_meshblock%ptr%sx - 1 + NGHOST, 0:0, 0:0))
-      allocate(by(-NGHOST : this_meshblock%ptr%sx - 1 + NGHOST, 0:0, 0:0))
-      allocate(bz(-NGHOST : this_meshblock%ptr%sx - 1 + NGHOST, 0:0, 0:0))
-      allocate(jx(-NGHOST : this_meshblock%ptr%sx - 1 + NGHOST, 0:0, 0:0))
-      allocate(jy(-NGHOST : this_meshblock%ptr%sx - 1 + NGHOST, 0:0, 0:0))
-      allocate(jz(-NGHOST : this_meshblock%ptr%sx - 1 + NGHOST, 0:0, 0:0))
-      allocate(jx_buff(-NGHOST : this_meshblock%ptr%sx - 1 + NGHOST, 0:0, 0:0))
-      allocate(jy_buff(-NGHOST : this_meshblock%ptr%sx - 1 + NGHOST, 0:0, 0:0))
-      allocate(jz_buff(-NGHOST : this_meshblock%ptr%sx - 1 + NGHOST, 0:0, 0:0))
-      allocate(lg_arr(-NGHOST : this_meshblock%ptr%sx - 1 + NGHOST, 0:0, 0:0))
-      ! 20 = max # of fields sent in each direction
-      sendrecv_offsetsz = NGHOST * 20
-      ! 2 (~5) directions to send/recv in 1D
-      sendrecv_buffsz = sendrecv_offsetsz * 5
-    #elif twoD
-      allocate(ex(-NGHOST : this_meshblock%ptr%sx - 1 + NGHOST,&
-                & -NGHOST : this_meshblock%ptr%sy - 1 + NGHOST, 0:0))
-      allocate(ey(-NGHOST : this_meshblock%ptr%sx - 1 + NGHOST,&
-                & -NGHOST : this_meshblock%ptr%sy - 1 + NGHOST, 0:0))
-      allocate(ez(-NGHOST : this_meshblock%ptr%sx - 1 + NGHOST,&
-                & -NGHOST : this_meshblock%ptr%sy - 1 + NGHOST, 0:0))
-      allocate(bx(-NGHOST : this_meshblock%ptr%sx - 1 + NGHOST,&
-                & -NGHOST : this_meshblock%ptr%sy - 1 + NGHOST, 0:0))
-      allocate(by(-NGHOST : this_meshblock%ptr%sx - 1 + NGHOST,&
-                & -NGHOST : this_meshblock%ptr%sy - 1 + NGHOST, 0:0))
-      allocate(bz(-NGHOST : this_meshblock%ptr%sx - 1 + NGHOST,&
-                & -NGHOST : this_meshblock%ptr%sy - 1 + NGHOST, 0:0))
-      allocate(jx(-NGHOST : this_meshblock%ptr%sx - 1 + NGHOST,&
-                & -NGHOST : this_meshblock%ptr%sy - 1 + NGHOST, 0:0))
-      allocate(jy(-NGHOST : this_meshblock%ptr%sx - 1 + NGHOST,&
-                & -NGHOST : this_meshblock%ptr%sy - 1 + NGHOST, 0:0))
-      allocate(jz(-NGHOST : this_meshblock%ptr%sx - 1 + NGHOST,&
-                & -NGHOST : this_meshblock%ptr%sy - 1 + NGHOST, 0:0))
-      allocate(jx_buff(-NGHOST : this_meshblock%ptr%sx - 1 + NGHOST,&
-                     & -NGHOST : this_meshblock%ptr%sy - 1 + NGHOST, 0:0))
-      allocate(jy_buff(-NGHOST : this_meshblock%ptr%sx - 1 + NGHOST,&
-                     & -NGHOST : this_meshblock%ptr%sy - 1 + NGHOST, 0:0))
-      allocate(jz_buff(-NGHOST : this_meshblock%ptr%sx - 1 + NGHOST,&
-                     & -NGHOST : this_meshblock%ptr%sy - 1 + NGHOST, 0:0))
-      allocate(lg_arr(-NGHOST : this_meshblock%ptr%sx - 1 + NGHOST,&
-                    & -NGHOST : this_meshblock%ptr%sy - 1 + NGHOST, 0:0))
-
-     ! 20 = max # of fields sent in each direction
-     sendrecv_offsetsz = MAX0(this_meshblock%ptr%sx, this_meshblock%ptr%sy, this_meshblock%ptr%sz) * NGHOST * 20
-     ! 8 (~10) directions to send/recv in 2D
-     sendrecv_buffsz = sendrecv_offsetsz * 10
-    #elif threeD
-      allocate(ex(-NGHOST : this_meshblock%ptr%sx - 1 + NGHOST,&
-                & -NGHOST : this_meshblock%ptr%sy - 1 + NGHOST,&
-                & -NGHOST : this_meshblock%ptr%sz - 1 + NGHOST))
-      allocate(ey(-NGHOST : this_meshblock%ptr%sx - 1 + NGHOST,&
-                & -NGHOST : this_meshblock%ptr%sy - 1 + NGHOST,&
-                & -NGHOST : this_meshblock%ptr%sz - 1 + NGHOST))
-      allocate(ez(-NGHOST : this_meshblock%ptr%sx - 1 + NGHOST,&
-                & -NGHOST : this_meshblock%ptr%sy - 1 + NGHOST,&
-                & -NGHOST : this_meshblock%ptr%sz - 1 + NGHOST))
-      allocate(bx(-NGHOST : this_meshblock%ptr%sx - 1 + NGHOST,&
-                & -NGHOST : this_meshblock%ptr%sy - 1 + NGHOST,&
-                & -NGHOST : this_meshblock%ptr%sz - 1 + NGHOST))
-      allocate(by(-NGHOST : this_meshblock%ptr%sx - 1 + NGHOST,&
-                & -NGHOST : this_meshblock%ptr%sy - 1 + NGHOST,&
-                & -NGHOST : this_meshblock%ptr%sz - 1 + NGHOST))
-      allocate(bz(-NGHOST : this_meshblock%ptr%sx - 1 + NGHOST,&
-                & -NGHOST : this_meshblock%ptr%sy - 1 + NGHOST,&
-                & -NGHOST : this_meshblock%ptr%sz - 1 + NGHOST))
-      allocate(jx(-NGHOST : this_meshblock%ptr%sx - 1 + NGHOST,&
-                & -NGHOST : this_meshblock%ptr%sy - 1 + NGHOST,&
-                & -NGHOST : this_meshblock%ptr%sz - 1 + NGHOST))
-      allocate(jy(-NGHOST : this_meshblock%ptr%sx - 1 + NGHOST,&
-                & -NGHOST : this_meshblock%ptr%sy - 1 + NGHOST,&
-                & -NGHOST : this_meshblock%ptr%sz - 1 + NGHOST))
-      allocate(jz(-NGHOST : this_meshblock%ptr%sx - 1 + NGHOST,&
-                & -NGHOST : this_meshblock%ptr%sy - 1 + NGHOST,&
-                & -NGHOST : this_meshblock%ptr%sz - 1 + NGHOST))
-      allocate(jx_buff(-NGHOST : this_meshblock%ptr%sx - 1 + NGHOST,&
-                     & -NGHOST : this_meshblock%ptr%sy - 1 + NGHOST,&
-                     & -NGHOST : this_meshblock%ptr%sz - 1 + NGHOST))
-      allocate(jy_buff(-NGHOST : this_meshblock%ptr%sx - 1 + NGHOST,&
-                     & -NGHOST : this_meshblock%ptr%sy - 1 + NGHOST,&
-                     & -NGHOST : this_meshblock%ptr%sz - 1 + NGHOST))
-      allocate(jz_buff(-NGHOST : this_meshblock%ptr%sx - 1 + NGHOST,&
-                     & -NGHOST : this_meshblock%ptr%sy - 1 + NGHOST,&
-                     & -NGHOST : this_meshblock%ptr%sz - 1 + NGHOST))
-      allocate(lg_arr(-NGHOST : this_meshblock%ptr%sx - 1 + NGHOST,&
-                    & -NGHOST : this_meshblock%ptr%sy - 1 + NGHOST,&
-                    & -NGHOST : this_meshblock%ptr%sz - 1 + NGHOST))
-      ! 20 = max # of fields sent in each direction
-      sendrecv_offsetsz = MAX0(this_meshblock%ptr%sx, this_meshblock%ptr%sy, this_meshblock%ptr%sz)**2 * NGHOST * 20
-      ! 26 (~30) directions to send/recv in 3D
-      sendrecv_buffsz = sendrecv_offsetsz * 30
-    #endif
-
-    allocate(sm_arr(0:this_meshblock%ptr%sx - 1, 0:this_meshblock%ptr%sy - 1, 0:this_meshblock%ptr%sz - 1))
-
-    if (allocated(send_fld)) deallocate(send_fld)
-    if (allocated(recv_fld)) deallocate(recv_fld)
-    allocate(send_fld(sendrecv_buffsz))
-    allocate(recv_fld(sendrecv_offsetsz))
-  end subroutine initializeFields
-
-  subroutine firstRankInitialize()
+  subroutine initializeDirectories()
     ! create output/restart directories
     !   if does not already exist
     !     note: some compilers may not support IFPORT
-    #ifdef IFPORT
-      logical :: result
-      if (tot_output_enable .or. hst_enable) then
+    logical :: result
+    diag_file_name = trim(output_dir_name) // '/' // trim(diag_file_name)
+    warn_file_name = trim(output_dir_name) // '/' // trim(warn_file_name)
+    if (mpi_rank .eq. 0) then
+      #ifdef IFPORT
         result = makedirqq(trim(output_dir_name))
-      end if
-      if (rst_enable) then
-        result = makedirqq(trim(restart_dir_name))
-      end if
-      if (slice_output_enable) then
-        result = makedirqq(trim(slice_dir_name))
-      end if
-    #else
-      if (tot_output_enable .or. hst_enable) then
+        if (rst_enable) then
+          result = makedirqq(trim(restart_dir_name))
+        end if
+        if (slice_output_enable) then
+          result = makedirqq(trim(slice_dir_name))
+        end if
+      #else
         call system('mkdir -p ' // trim(output_dir_name))
-      end if
-      if (rst_enable) then
-        call system('mkdir -p ' // trim(restart_dir_name))
-      end if
-      if (slice_output_enable) then
-        call system('mkdir -p ' // trim(slice_dir_name))
-      end if
-    #endif
-  end subroutine firstRankInitialize
-
-  subroutine restartSimulation()
-    implicit none
-    character(len=STR_MAX)      :: mpichar, filename
-    integer                     :: s, ti, tj, tk, num, pid
-    integer                     :: dummy_int1, dummy_int2, dummy_int3
-    real                        :: dummy_real
-    write(mpichar, "(i8.8)") mpi_rank
-
-    if (mpi_rank .eq. 0) then
-      print *, 'Reading restart data...'
+        if (rst_enable) then
+          call system('mkdir -p ' // trim(restart_dir_name))
+        end if
+        if (slice_output_enable) then
+          call system('mkdir -p ' // trim(slice_dir_name))
+        end if
+      #endif
+      ! diagnostics file
+      open(UNIT_diag, file=diag_file_name, status="replace", form="formatted")
+      close(UNIT_diag)
+      ! warnings file
+      open(UNIT_warn, file=warn_file_name, status="replace", form="formatted")
+      close(UNIT_warn)
     end if
-
-    ! loading fields
-    filename = trim(restart_from) // '/flds.rst.' // trim(mpichar)
-    open(UNIT_restart_fld, file=filename, form="unformatted")
-    rewind(UNIT_restart_fld)
-    read(UNIT_restart_fld) start_timestep, dseed, tot_output_index, slice_index
-    read(UNIT_restart_fld) ex, ey, ez, bx, by, bz
-    read(UNIT_restart_fld) CC, ppc0, c_omp, sigma
-    close(UNIT_restart_fld)
-    start_timestep = start_timestep + 1
-
-    call renormalizeUnits()
-
-    if (mpi_rank .eq. 0) then
-      print *, '`CC`, `ppc0`, `c_omp` & `sigma` are read from restart ...'
-      print *, '... values read from input are ignored.'
-    end if
-
-    ! loading particles
-    filename = trim(restart_from) // '/prtl.rst.' // trim(mpichar)
-    open(UNIT_restart_prtl, file=filename, form="unformatted")
-    do s = 1, nspec
-      read(UNIT_restart_prtl) species(s)%cntr_sp
-      ! check that the tile sizes are the same
-      read(UNIT_restart_prtl) dummy_int1, dummy_int2, dummy_int3
-      if ((dummy_int1 .ne. species(s)%tile_sx) .or.&
-        & (dummy_int2 .ne. species(s)%tile_sy) .or.&
-        & (dummy_int3 .ne. species(s)%tile_sz)) then
-        call throwError('ERROR. Wrong tile sizes after the restart')
-      end if
-      ! check that the # of tiles are the same
-      read(UNIT_restart_prtl) dummy_int1, dummy_int2, dummy_int3
-      if ((dummy_int1 .ne. species(s)%tile_nx) .or.&
-        & (dummy_int2 .ne. species(s)%tile_ny) .or.&
-        & (dummy_int3 .ne. species(s)%tile_nz)) then
-        call throwError('ERROR. Wrong # of tiles after the restart')
-      end if
-
-      ! loop through all the tiles and read
-      do ti = 1, species(s)%tile_nx
-        do tj = 1, species(s)%tile_ny
-          do tk = 1, species(s)%tile_nz
-            read(UNIT_restart_prtl) species(s)%prtl_tile(ti, tj, tk)%spec
-
-            ! reallocate the tile if necessary
-            read(UNIT_restart_prtl) dummy_int1
-            if (dummy_int1 .ne. species(s)%prtl_tile(ti, tj, tk)%maxptl_sp) then
-              call allocateParticlesOnEmptyTile(s, species(s)%prtl_tile(ti, tj, tk), dummy_int1)
-            end if
-            read(UNIT_restart_prtl) species(s)%prtl_tile(ti, tj, tk)%npart_sp
-            num = species(s)%prtl_tile(ti, tj, tk)%npart_sp
-
-            ! read out and check tile dimensions
-            read(UNIT_restart_prtl) dummy_int1
-            if (dummy_int1 .ne. species(s)%prtl_tile(ti, tj, tk)%x1) then
-              call throwError('ERROR. Wrong tile dimension after the restart')
-            end if
-            read(UNIT_restart_prtl) dummy_int1
-            if (dummy_int1 .ne. species(s)%prtl_tile(ti, tj, tk)%x2) then
-              call throwError('ERROR. Wrong tile dimension after the restart')
-            end if
-            read(UNIT_restart_prtl) dummy_int1
-            if (dummy_int1 .ne. species(s)%prtl_tile(ti, tj, tk)%y1) then
-              call throwError('ERROR. Wrong tile dimension after the restart')
-            end if
-            read(UNIT_restart_prtl) dummy_int1
-            if (dummy_int1 .ne. species(s)%prtl_tile(ti, tj, tk)%y2) then
-              call throwError('ERROR. Wrong tile dimension after the restart')
-            end if
-            read(UNIT_restart_prtl) dummy_int1
-            if (dummy_int1 .ne. species(s)%prtl_tile(ti, tj, tk)%z1) then
-              call throwError('ERROR. Wrong tile dimension after the restart')
-            end if
-            read(UNIT_restart_prtl) dummy_int1
-            if (dummy_int1 .ne. species(s)%prtl_tile(ti, tj, tk)%z2) then
-              call throwError('ERROR. Wrong tile dimension after the restart')
-            end if
-
-            ! finally read out all the particles
-            ! DEP_PRT [particle-dependent]
-            read(UNIT_restart_prtl) species(s)%prtl_tile(ti, tj, tk)%xi(1:num)
-            read(UNIT_restart_prtl) species(s)%prtl_tile(ti, tj, tk)%yi(1:num)
-            read(UNIT_restart_prtl) species(s)%prtl_tile(ti, tj, tk)%zi(1:num)
-            read(UNIT_restart_prtl) species(s)%prtl_tile(ti, tj, tk)%dx(1:num)
-            read(UNIT_restart_prtl) species(s)%prtl_tile(ti, tj, tk)%dy(1:num)
-            read(UNIT_restart_prtl) species(s)%prtl_tile(ti, tj, tk)%dz(1:num)
-            read(UNIT_restart_prtl) species(s)%prtl_tile(ti, tj, tk)%u(1:num)
-            read(UNIT_restart_prtl) species(s)%prtl_tile(ti, tj, tk)%v(1:num)
-            read(UNIT_restart_prtl) species(s)%prtl_tile(ti, tj, tk)%w(1:num)
-            read(UNIT_restart_prtl) species(s)%prtl_tile(ti, tj, tk)%weight(1:num)
-            read(UNIT_restart_prtl) species(s)%prtl_tile(ti, tj, tk)%ind(1:num)
-            read(UNIT_restart_prtl) species(s)%prtl_tile(ti, tj, tk)%proc(1:num)
-
-            #ifdef PRTLPAYLOADS
-              read(UNIT_restart_prtl) species(s)%prtl_tile(ti, tj, tk)%payload1(1:num)
-              read(UNIT_restart_prtl) species(s)%prtl_tile(ti, tj, tk)%payload2(1:num)
-              read(UNIT_restart_prtl) species(s)%prtl_tile(ti, tj, tk)%payload3(1:num)
-            #endif
-          end do
-        end do
-      end do
-    end do
-    close(UNIT_restart_prtl)
-  end subroutine restartSimulation
-
-  subroutine checkEverything()
-    implicit none
-    ! check that the domain size is larger than the number of ghost zones
-    #ifdef oneD
-      if (this_meshblock%ptr%sx .lt. NGHOST) then
-        call throwError('ERROR: ghost zones overflow the domain size in ' // trim(STR(mpi_rank)))
-      end if
-    #elif twoD
-      if ((this_meshblock%ptr%sx .lt. NGHOST) .or.&
-        & (this_meshblock%ptr%sy .lt. NGHOST)) then
-        call throwError('ERROR: ghost zones overflow the domain size in ' // trim(STR(mpi_rank)))
-      end if
-    #elif threeD
-      if ((this_meshblock%ptr%sx .lt. NGHOST) .or.&
-        & (this_meshblock%ptr%sy .lt. NGHOST) .or.&
-        & (this_meshblock%ptr%sz .lt. NGHOST)) then
-        call throwError('ERROR: ghost zones overflow the domain size in ' // trim(STR(mpi_rank)))
-      end if
-    #endif
-  end subroutine checkEverything
+  end subroutine initializeDirectories
 
   #ifdef DOWNSAMPLING
     subroutine initializeDownsampling()
@@ -842,6 +370,8 @@ contains
       call getInput('downsampling', 'energy_max', dwn_energy_max, 1e2)
       call getInput('downsampling', 'energy_min', dwn_energy_min, 1e-2)
       call getInput('downsampling', 'int_weights', dwn_int_weights, .false.)
+
+      call printDiag("initializeDownsampling()", 1)
     end subroutine initializeDownsampling
   #endif
 end module m_initialize
