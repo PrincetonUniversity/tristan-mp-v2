@@ -102,38 +102,6 @@ contains
     end if
   end function parseInput
 
-  ! ! changing blockname to 3 characters
-  ! function simplifyBlockname(blockname) result(bname)
-  !   implicit none
-  !   character(len=*), intent(in)  :: blockname
-  !   character(len=3)              :: bname
-  !   if (trim(blockname) .eq. 'node_configuration') then
-  !     bname = 'cpu'
-  !   else if (trim(blockname) .eq. 'grid') then
-  !     bname = 'grd'
-  !   else if (trim(blockname) .eq. 'restart') then
-  !     bname = 'rst'
-  !   else if (trim(blockname) .eq. 'adaptive_load_balancing') then
-  !     bname = 'alb'
-  !   else if (trim(blockname) .eq. 'static_load_balancing') then
-  !     bname = 'slb'
-  !   else if (trim(blockname) .eq. 'plasma') then
-  !     bname = 'pls'
-  !   else if (trim(blockname) .eq. 'particles') then
-  !     bname = 'prt'
-  !   else if (trim(blockname) .eq. 'downsampling') then
-  !     bname = 'dwn'
-  !   else if (trim(blockname) .eq. 'bw_pp') then
-  !     bname = 'bwp'
-  !   else if (trim(blockname) .eq. 'compton') then
-  !     bname = 'cmp'
-  !   else if (trim(blockname) .eq. 'problem') then
-  !     bname = 'prb'
-  !   else
-  !     bname = blockname(1:3)
-  !   end if
-  ! end function simplifyBlockname
-
   function isUniqueParam(blockname, varname) result(unique)
     implicit none
     character(len=*), intent(in)  :: blockname, varname

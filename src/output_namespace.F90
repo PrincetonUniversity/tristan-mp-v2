@@ -5,8 +5,12 @@ module m_outputnamespace
   implicit none
 
   ! history
-  logical                   :: hst_enable, hst_human_readable = .false.
+  logical                   :: hst_enable
   integer                   :: hst_interval
+
+  ! user-specified diagnostic output
+  logical                   :: usrout_enable
+  integer                   :: usrout_interval
 
   ! total output and slice
   integer                   :: tot_output_index = 0, slice_index = 0
@@ -30,6 +34,7 @@ module m_outputnamespace
   real                      :: spec_min, spec_max
   logical                   :: spec_log_bins, spec_dynamic_bins
   integer                   :: spec_nx, spec_ny, spec_nz
+
   ! variables
   ! ... for particle/diag output
   integer                   :: n_prtl_vars, n_dom_vars
@@ -38,6 +43,10 @@ module m_outputnamespace
   ! ... for spectra
   real                      :: spec_bin_size
   real, allocatable         :: glob_spectra(:,:,:,:,:)
+
+  #ifdef GCA
+    real, allocatable         :: glob_gca_spectra(:,:,:,:,:)
+  #endif
 
   ! ... for `slice` outputs
   integer                           :: nslices = 0, slice_axes(100), slice_pos(100)

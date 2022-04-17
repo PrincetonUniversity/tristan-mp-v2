@@ -62,7 +62,6 @@
 
   hst_enable    = 0
   hst_interval  = 1
-  hst_readable  = 1              # enable the human readable format for history file (no exp notations, but can be uncertain)
 
   spec_min      = 1e-3           # `g - 1` for massive and `e` for massless
   spec_max      = 1e1            # `g - 1` for massive and `e` for massless

@@ -26,7 +26,11 @@ contains
     real                                  :: Wx1, Wy1, Wz1, Wx2, Wy2, Wz2
     real                                  :: onemWx1, onemWy1, onemWz1, onemWx2, onemWy2, onemWz2
     real                                  :: Fx1, Fy1, Fz1, Fx2, Fy2, Fz2
-    real, pointer, contiguous             :: pt_u(:), pt_v(:), pt_w(:)
+    #ifndef GCA
+      real, pointer, contiguous             :: pt_u(:), pt_v(:), pt_w(:)
+    #else
+      real, pointer, contiguous             :: pt_u_eff(:), pt_v_eff(:), pt_w_eff(:)
+    #endif
 
     do s = 1, nspec ! loop over species
       if ((species(s)%ch_sp .eq. 0) .or. (.not. species(s)%deposit_sp)) cycle
@@ -41,17 +45,29 @@ contains
             pt_dy => species(s)%prtl_tile(ti, tj, tk)%dy
             pt_dz => species(s)%prtl_tile(ti, tj, tk)%dz
 
-            pt_u => species(s)%prtl_tile(ti, tj, tk)%u
-            pt_v => species(s)%prtl_tile(ti, tj, tk)%v
-            pt_w => species(s)%prtl_tile(ti, tj, tk)%w
+            #ifndef GCA
+              pt_u => species(s)%prtl_tile(ti, tj, tk)%u
+              pt_v => species(s)%prtl_tile(ti, tj, tk)%v
+              pt_w => species(s)%prtl_tile(ti, tj, tk)%w
+            #else
+              pt_u_eff => species(s)%prtl_tile(ti, tj, tk)%u_eff
+              pt_v_eff => species(s)%prtl_tile(ti, tj, tk)%v_eff
+              pt_w_eff => species(s)%prtl_tile(ti, tj, tk)%w_eff
+            #endif
             pt_wei => species(s)%prtl_tile(ti, tj, tk)%weight
 
             temp_charge = species(s)%ch_sp * unit_ch / B_norm
             do p = 1, species(s)%prtl_tile(ti, tj, tk)%npart_sp
-              ! push the particle back
-              gamma_inv = 1.0 / sqrt(1.0 + pt_u(p)**2 + pt_v(p)**2 + pt_w(p)**2)
-              x2 = REAL(pt_xi(p)) + pt_dx(p);       y2 = REAL(pt_yi(p)) + pt_dy(p);       z2 = REAL(pt_zi(p)) + pt_dz(p)
-              x1 = x2 - pt_u(p) * CC * gamma_inv;   y1 = y2 - pt_v(p) * CC * gamma_inv;   z1 = z2 - pt_w(p) * CC * gamma_inv
+              #ifndef GCA
+                ! push the particle back
+                gamma_inv = 1.0 / sqrt(1.0 + pt_u(p)**2 + pt_v(p)**2 + pt_w(p)**2)
+                x2 = REAL(pt_xi(p)) + pt_dx(p);       y2 = REAL(pt_yi(p)) + pt_dy(p);       z2 = REAL(pt_zi(p)) + pt_dz(p)
+                x1 = x2 - pt_u(p) * CC * gamma_inv;   y1 = y2 - pt_v(p) * CC * gamma_inv;   z1 = z2 - pt_w(p) * CC * gamma_inv
+              #else
+                ! push the particle back
+                x2 = REAL(pt_xi(p)) + pt_dx(p);   y2 = REAL(pt_yi(p)) + pt_dy(p);   z2 = REAL(pt_zi(p)) + pt_dz(p)
+                x1 = x2 - pt_u_eff(p);            y1 = y2 - pt_v_eff(p);            z1 = z2 - pt_w_eff(p)
+              #endif
 
               #ifdef oneD
                 i1 = FLOOR(x1);   i2 = pt_xi(p)
@@ -86,12 +102,16 @@ contains
             pt_xi => null(); pt_yi => null(); pt_zi => null()
             pt_dx => null(); pt_dy => null(); pt_dz => null()
             pt_wei => null()
-            pt_u => null(); pt_v => null(); pt_w => null()
+            #ifndef GCA
+              pt_u => null(); pt_v => null(); pt_w => null()
+            #else
+              pt_u_eff => null(); pt_v_eff => null(); pt_w_eff => null()
+            #endif
           end do
         end do
       end do
     end do ! species loop
 
-    call printDiag((mpi_rank .eq. 0), "depositCurrents()", .true.)
+    call printDiag("depositCurrents()", 2)
   end subroutine depositCurrents
 end module m_currentdeposit

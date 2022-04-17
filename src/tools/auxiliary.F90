@@ -46,39 +46,90 @@ module m_aux
     end function getFMT
   end interface
 
+  type :: warning
+    character(len=STR_MAX)  :: description
+    integer                 :: counter = 0
+  end type warning
+
+  type(warning)           :: warnings(100)
   type(simulation_params) :: sim_params
 
   !--- PRIVATE functions -----------------------------------------!
   private :: intToStr, realToStr
   !...............................................................!
 contains
-  subroutine printDiag(bool, msg, prepend)
+  subroutine initializeSimulationParameters()
+    implicit none
+    sim_params%count = 0
+    allocate(sim_params%param_type(1000))
+    allocate(sim_params%param_group(1000))
+    allocate(sim_params%param_name(1000))
+    allocate(sim_params%param_value(1000))
+  end subroutine initializeSimulationParameters
+
+  subroutine initializeWarnings()
+    implicit none
+    warnings(1)%description = "Synchrotron cooling is too strong"
+    warnings(2)%description = "QED probability too large"
+    warnings(3)%description = "IC cooling is too strong"
+  end subroutine initializeWarnings
+
+  subroutine printDiag(msg, level)
     implicit none
     character(len=*), intent(in)  :: msg
-    logical, intent(in)           :: bool
-    logical, optional, intent(in) :: prepend
+    integer, optional, intent(in) :: level
     character(len=STR_MAX)        :: dummy
     integer                       :: sz, i, ierr
-    #ifdef DEBUG
-      if (bool) then
-        sz = len(trim(msg))
-        if (present(prepend)) then
-          if (prepend) then
-            dummy = '...'
-            sz = sz + 3
-          end if
-        else
-          dummy = ''
-        end if
-        dummy = trim(dummy) // trim(msg)
-        do i = 1, (38 - sz)
-          dummy = trim(dummy) // '.'
+    if (mpi_rank .eq. 0) then
+      open(UNIT_diag, file=diag_file_name, status="old", position="append", form="formatted")
+      sz = len(trim(msg))
+      dummy = ''
+      if (present(level)) then
+        sz = sz + level * 3
+        do i = 1, level*3
+          dummy(i:i) = '.'
         end do
-        dummy = trim(dummy) // '[OK]'
-        print *, trim(dummy)
       end if
-    #endif
+      dummy = trim(dummy) // trim(msg)
+      write(UNIT_diag, *) trim(dummy)
+      close(UNIT_diag)
+    end if
   end subroutine printDiag
+
+  subroutine addWarning(id)
+    implicit none
+    integer, intent(in) :: id
+    warnings(id)%counter = warnings(id)%counter + 1
+  end subroutine addWarning
+
+  subroutine printWarnings(timestep)
+    implicit none
+    integer, intent(in)                     :: timestep
+    integer                                 :: ierr, root_rnk = 0, w
+    integer                                 :: warnings_global(100)
+
+    do w = 1, 100
+      call MPI_REDUCE(warnings(w)%counter, warnings_global(w), 1, MPI_INTEGER,&
+                    & MPI_SUM, root_rnk, MPI_COMM_WORLD, ierr)
+    end do
+
+    if (mpi_rank .eq. root_rnk) then
+      open(UNIT_warn, file=warn_file_name, status="old", position="append", form="formatted")
+      write(UNIT_warn, *) '=================================================='
+      write(UNIT_warn, *) 'Timestep = ' // trim(STR(timestep))
+      do w = 1, 100
+        if (warnings_global(w) .gt. 0) then
+          write(UNIT_warn, *) trim(warnings(w)%description) // ' -> called ' // trim(STR(warnings_global(w))) // ' times'
+        end if
+      end do
+      write(UNIT_warn, *) '..................................................'
+      close(UNIT_warn)
+    end if
+
+    do w = 1, 100
+      warnings(w)%counter = 0
+    end do
+  end subroutine printWarnings
 
   function getFMTForReal(value, w) result(FMT)
     implicit none
@@ -118,32 +169,6 @@ contains
     write(dummy, '(I10)') w_
     FMT = 'ES' // trim(dummy) // '.3'
   end function getFMTForRealScientific
-
-  subroutine printReport(bool, msg, prepend)
-    implicit none
-    character(len=*), intent(in)  :: msg
-    logical, intent(in)           :: bool
-    logical, optional, intent(in) :: prepend
-    character(len=STR_MAX)        :: dummy
-    integer                       :: sz, i, ierr
-    if (bool) then
-      sz = len(trim(msg))
-      if (present(prepend)) then
-        if (prepend) then
-          dummy = '...'
-          sz = sz + 3
-        end if
-      else
-        dummy = ''
-      end if
-      dummy = trim(dummy) // trim(msg)
-      do i = 1, (38 - sz)
-        dummy = trim(dummy) // '.'
-      end do
-      dummy = trim(dummy) // '[OK]'
-      print *, trim(dummy)
-    end if
-  end subroutine printReport
 
   subroutine printTimeHeader(tstep)
     implicit none
@@ -323,6 +348,18 @@ contains
     read (my_str, *) my_int
   end function STRtoINT
 
+  logical function arraysAreEqual(array1, array2)
+    integer, dimension(:), intent(in) :: array1, array2
+    integer :: i
+    arraysAreEqual = (size(array1) .eq. size(array2))
+    if (arraysAreEqual) then
+      do i = 1, size(array1)
+        arraysAreEqual = (array1(i) .eq. array2(i))
+        if (.not. arraysAreEqual) exit
+      end do
+    end if
+  end function arraysAreEqual
+
   real(dprec) function randomNum(DSEED)
   	implicit none
   	real(dprec)    :: DSEED
@@ -378,6 +415,8 @@ contains
     integer, intent(in) :: rank
     dseed = 123457.D0
     dseed = dseed + rank
+
+    call printDiag("initializeRandomSeed()", 1)
   end subroutine initializeRandomSeed
 
   subroutine log_normal(n_bins, lognorm)

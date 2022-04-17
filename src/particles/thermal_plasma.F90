@@ -13,7 +13,7 @@ module m_thermalplasma
 
   type :: maxwellian
     ! tabulated maxwellian is used 1d/2d for any T, and 3d for T < t_crit
-    ! ... in all cases if T < t_crit -- we use non-relativistic maxwellian
+    ! ... in all cases if T < t_nonrel -- we use non-relativistic maxwellian
     ! ... and `u_table` contains `beta` instead of `4-velocity`
     real                            :: temperature, shift_gamma
     real, allocatable, dimension(:) :: DF_table
@@ -24,8 +24,7 @@ module m_thermalplasma
   end type maxwellian
 
   !--- PRIVATE variables -----------------------------------------!
-  real    :: t_crit = 0.01
-  private :: t_crit
+  real, private    :: t_crit = 0.1, t_nonrel = 0.01
   !...............................................................!
 
   !--- PRIVATE functions -----------------------------------------!
@@ -64,7 +63,7 @@ contains
     do iter = 1, maxw%npoints
       u_1 = u_max * REAL(iter - 1) / REAL(maxw%npoints)
       u_2 = u_max * REAL(iter) / REAL(maxw%npoints)
-      if (temp .ge. t_crit) then
+      if (temp .ge. t_nonrel) then
         if (maxw%dimension .eq. 1) then
           df = (u_2 - u_1) * 0.5 * (exp(-sqrt(1.0 + u_1**2) / temp) + exp(-sqrt(1.0 + u_2**2) / temp))
         else if (maxw%dimension .eq. 2) then
@@ -122,8 +121,8 @@ contains
             dx2 = X3 / maxw%DF_table(iter)
             U = maxw%u_table(iter) * dx2
           end if
-          ! if T < t_crit -> convert from `beta` to `4-velocity`
-          if (maxw%temperature .lt. t_crit) then
+          ! if T < t_nonrel -> convert from `beta` to `4-velocity`
+          if (maxw%temperature .lt. t_nonrel) then
             U = U / sqrt(1.0 - U**2)
           end if
           exit
@@ -344,8 +343,24 @@ contains
               fill_maxwellian%shift_dir = INT(SIGN(1.0, species(spec_)%ch_sp)) * shift_dir
             end if
           end if
-          fill_maxwellian%temperature = temperature / species(spec_)%m_sp
-          call generateFromMaxwellian(fill_maxwellian, u_, v_, w_)
+          if (temperature .gt. 0) then
+            fill_maxwellian%temperature = temperature / species(spec_)%m_sp
+            call generateFromMaxwellian(fill_maxwellian, u_, v_, w_)
+          else
+            u_ = 0.0; v_ = 0.0; w_ = 0.0
+            if (fill_maxwellian%shift_flag) then
+              if (abs(fill_maxwellian%shift_dir) .eq. 1) then
+                u_ = SIGN(1, fill_maxwellian%shift_dir) * fill_maxwellian%shift_gamma *&
+                                                          & sqrt(1.0 - fill_maxwellian%shift_gamma**(-2))
+              else if (abs(fill_maxwellian%shift_dir) .eq. 2) then
+                v_ = SIGN(1, fill_maxwellian%shift_dir) * fill_maxwellian%shift_gamma *&
+                                                          & sqrt(1.0 - fill_maxwellian%shift_gamma**(-2))
+              else if (abs(fill_maxwellian%shift_dir) .eq. 3) then
+                w_ = SIGN(1, fill_maxwellian%shift_dir) * fill_maxwellian%shift_gamma *&
+                                                          & sqrt(1.0 - fill_maxwellian%shift_gamma**(-2))
+              end if
+            end if
+          end if
           call createParticle(spec_, xi_, yi_, zi_, dx_, dy_, dz_, u_, v_, w_,&
                             & weight = weights_)
         end do

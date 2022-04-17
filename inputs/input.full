@@ -53,6 +53,12 @@
   fieldsolver   = 1              # enable/disable the fieldsolver [1]
   currdeposit   = 1              # enable/disable the current deposition [1]
 
+  # following 4 values are required if `gcaiter` flag is enabled
+  gca_rhoL      = 1              # critical larmor radius at which GCA kicks in [*]
+  gca_EoverB    = 1              # critical E/B at which GCA kicks in [*]
+  gca_vperpMax  = 0.1            # particles with larger v_perp will be treated as Boris [*]
+  gca_enforce_mu0 = 1            # enforce mu = 0 for GCA particles [*]
+
 <restart>
 
   do_restart    = 0              # perform simulation restart [0]
@@ -86,7 +92,10 @@
   # history output
   hst_enable    = 0              # enable/disable history output [0]
   hst_interval  = 1              # interval between history output steps [1]
-  hst_readable  = 1              # enable the human readable format (less accurate) [0]
+
+	# user-specific output
+	usr_enable    = 0							 # enable/disable usr-output [0]
+	usr_interval  = 100						 # interval between usr-output steps [100]
 
   # spectra output
   # bins are `g - 1` for massive and `e` for massless
@@ -133,6 +142,27 @@
   in_z         = 0               # enable along z [0]
   sz_min       = 10              # min # of cells per meshblock [10]
 
+<adaptive_load_balancing>
+
+  # (if `alb` flag is enabled)
+  in_x         = 0               # enable along x [0]
+  sx_min       = 10              # min # of cells per meshblock [10]
+  interval_x   = 100             # timesteps between load balancing in x [1000]
+  start_x      = 1000            # first timestep for load balancing in x [1]
+  slab_x       = 10              # slab to be sent in x direction [1]
+
+  in_y         = 0               # enable along y [0]
+  sy_min       = 10              # min # of cells per meshblock [10]
+  interval_y   = 100             # timesteps between load balancing in y [1000]
+  start_y      = 1000            # first timestep for load balancing in y [1]
+  slab_y       = 10              # slab to be sent in y direction [1]
+
+  in_z         = 0               # enable along z [0]
+  sz_min       = 10              # min # of cells per meshblock [10]
+  interval_z   = 100             # timesteps between load balancing in z [1000]
+  start_z      = 1000            # first timestep for load balancing in z [1]
+  slab_z       = 10              # slab to be sent in z direction [1]
+
 <plasma>
   # these three parameters determine the...
   # ... unit normalization of the code
@@ -156,6 +186,7 @@
   ch2           = 1
   deposit2      = 1
   move2         = 1
+  gca2          = 1             # does species do GCA (`gcaiter` flag required)? [1] if (ch != 0) else [0]
 
   maxptl3       = 1e6
   m3            = 0

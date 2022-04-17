@@ -6,7 +6,7 @@ You may also use the following `bibtex` entry:
 
 ```
 @ONLINE {tristanv2,
-    author = "H. Hakobyan and A. Spitkovsky",
+    author = "H. Hakobyan, and A. Spitkovsky",
     title  = "Tristan-MP v2, multi-species particle-in-cell plasma code",
     year   = "2020",
     url    = "https://ntoles.github.io/tristan-wiki/"

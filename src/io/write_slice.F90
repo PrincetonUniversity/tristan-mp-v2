@@ -36,18 +36,18 @@ contains
       do n = 1, nslices
         if (slice_axes(n) .eq. 1) then
           call writeSliceX_hdf5(step, time, slice_pos(n))
-            call printDiag((mpi_rank .eq. 0), "...writeSliceX_hdf5()", .true.)
+            call printDiag("writeSliceX_hdf5()", 3)
         else if (slice_axes(n) .eq. 2) then
           call writeSliceY_hdf5(step, time, slice_pos(n))
-            call printDiag((mpi_rank .eq. 0), "...writeSliceY_hdf5()", .true.)
+            call printDiag("writeSliceY_hdf5()", 3)
         else if (slice_axes(n) .eq. 3) then
           call writeSliceZ_hdf5(step, time, slice_pos(n))
-            call printDiag((mpi_rank .eq. 0), "...writeSliceZ_hdf5()", .true.)
+            call printDiag("writeSliceZ_hdf5()", 3)
         else
           call throwError('ERROR. wrong `slice_axes(n)` in `writeSlices`')
         end if
       end do
-          call printDiag((mpi_rank .eq. 0), "...writeSlices_hdf5()", .true.)
+          call printDiag("writeSlices_hdf5()", 2)
     #endif
     slice_index = slice_index + 1
   end subroutine writeSlices
@@ -186,7 +186,7 @@ contains
           i = x_cut - this_x0
           do j = 0, this_sy - 1
             do k = 0, this_sz - 1
-              call selectFieldForOutput(fld_vars(f), 0_2, j, k, i, j, k, writing_lgarrQ)
+              call selectFieldForOutput(fld_vars(f), 0, j, k, i, j, k, writing_lgarrQ)
             end do
           end do
           if (mpi_rank .ne. root_rnk) then
@@ -296,7 +296,7 @@ contains
           j = y_cut - this_y0
           do i = 0, this_sx - 1
             do k = 0, this_sz - 1
-              call selectFieldForOutput(fld_vars(f), i, 0_2, k, i, j, k, writing_lgarrQ)
+              call selectFieldForOutput(fld_vars(f), i, 0, k, i, j, k, writing_lgarrQ)
             end do
           end do
           if (mpi_rank .ne. root_rnk) then
@@ -406,7 +406,7 @@ contains
           k = z_cut - this_z0
           do i = 0, this_sx - 1
             do j = 0, this_sy - 1
-              call selectFieldForOutput(fld_vars(f), i, j, 0_2, i, j, k, writing_lgarrQ)
+              call selectFieldForOutput(fld_vars(f), i, j, 0, i, j, k, writing_lgarrQ)
             end do
           end do
           if (mpi_rank .ne. root_rnk) then

@@ -45,7 +45,7 @@ contains
       & (modulo(timestep, dwn_interval) .eq. 0)) then
       call downsampleParticles()
     end if
-    call printDiag((mpi_rank .eq. 0), "downsamplingStep()", .true.)
+    call printDiag("downsamplingStep()", 2)
   end subroutine downsamplingStep
 
   subroutine downsampleParticles()

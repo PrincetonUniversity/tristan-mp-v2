@@ -29,7 +29,7 @@ contains
       call writeParams_fmt(step, time)
     #endif
 
-    call printDiag((mpi_rank .eq. 0), "...writeParams()", .true.)
+    call printDiag("writeParams()", 3)
   end subroutine writeParams
 
   subroutine writeParams_fmt(step, time)
@@ -115,7 +115,7 @@ contains
             call h5dwrite_f(dset_id, H5T_NATIVE_REAL, data_real, data_dims, error)
           else if (sim_params%param_type(n) .eq. 3) then
             call h5dcreate_f(file_id, trim(dsetname), H5T_NATIVE_INTEGER, dspace_id, dset_id, error)
-            data_int(1) = LOGICAL(sim_params%param_value(n)%value_bool)
+            data_int(1) = sim_params%param_value(n)%value_bool
             call h5dwrite_f(dset_id, H5T_NATIVE_INTEGER, data_int, data_dims, error)
           else
             call throwError('ERROR. Unknown `param_type` in `saveAllParameters`.')
