@@ -236,15 +236,16 @@ if args['debug'] != 'OFF':
     if int(args['debug']) >= 2:
         makefile_options['COMPILER_FLAGS'] += '-check all -check noarg_temp_created '
 else:
-    makefile_options['COMPILER_FLAGS'] += '-Ofast '
+    makefile_options['COMPILER_FLAGS'] += '-Ofast -O3 -DSoA -ipo '
 
 if args['test']:
     makefile_options['PREPROCESSOR_FLAGS'] += '-DTESTMODE '
 
-# compiler (+ vectorization etc)
-
 makefile_options['MODULE'] = '-module '
-makefile_options['COMPILER_FLAGS'] += '-O3 -DSoA -ipo -qopenmp-simd -qopt-report=5 -qopt-streaming-stores auto '
+
+# compiler (+ vectorization etc)
+if args['avx2'] or args['avx512']:
+    makefile_options['COMPILER_FLAGS'] += '-qopenmp-simd -qopt-report=5 -qopt-streaming-stores auto '
 
 if args['avx2']:
     if args['intel']:
