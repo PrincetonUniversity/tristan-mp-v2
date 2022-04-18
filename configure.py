@@ -27,10 +27,16 @@ parser.add_argument('--cluster',
                     choices=clusters,
                     help='choose cluster-specific configurations.')
 
-parser.add_argument('-intel',
-                    action='store_true',
-                    default=True,
-                    help='enable intel compiler')
+cpu_group = parser.add_mutually_exclusive_group(required=True)
+cpu_group.add_argument('-intel',
+                       action='store_true',
+                       default=False,
+                       help='Intel CPU')
+cpu_group.add_argument('-amd',
+                       action='store_true',
+                       default=False,
+                       help='AMD CPU')
+
 parser.add_argument('-hdf5',
                     action='store_true',
                     default=False,
@@ -63,7 +69,7 @@ parser.add_argument('-ifport',
                     default=False,
                     help='enable IFPORT library (`mkdir` etc)')
 
-mpi_group = parser.add_mutually_exclusive_group()
+mpi_group = parser.add_mutually_exclusive_group(required=True)
 mpi_group.add_argument('-mpi',
                        action='store_true',
                        default=False,
@@ -73,10 +79,10 @@ mpi_group.add_argument('-mpi08',
                        default=False,
                        help='enable mpi_f08')
 
-mpi_group.add_argument('-test',
-                       action='store_true',
-                       default=False,
-                       help='enable test mode')
+parser.add_argument('-test',
+                    action='store_true',
+                    default=False,
+                    help='enable test mode')
 
 # user file
 user_group = parser.add_mutually_exclusive_group(required=True)
@@ -186,7 +192,6 @@ specific_cluster = False
 if (args['cluster'] is not None):
     specific_cluster = True
     clustername = args['cluster'].capitalize()
-    args['intel'] = True
     args['ifport'] = True
     if args['cluster'] == 'perseus':
         args['mpi'] = True
@@ -204,10 +209,8 @@ if args['hdf5']:
     makefile_options['COMPILER_COMMAND'] += 'h5pfc '
     makefile_options['PREPROCESSOR_FLAGS'] += '-DHDF5 '
 else:
-    if ((not args['mpi']) and (not args['mpi08'])):
-        makefile_options['COMPILER_COMMAND'] += 'gfortran '
-    else:
-        makefile_options['COMPILER_COMMAND'] += 'mpif90 ' if args['intel'] else 'mpiifort '
+    makefile_options['COMPILER_COMMAND'] += 'mpif90 '
+    # if args['intel'] else 'mpiifort '
 if args['ifport']:
     makefile_options['PREPROCESSOR_FLAGS'] += '-DIFPORT '
 if args['lowmem']:
@@ -239,18 +242,20 @@ if args['test']:
     makefile_options['PREPROCESSOR_FLAGS'] += '-DTESTMODE '
 
 # compiler (+ vectorization etc)
-if args['intel']:
-    makefile_options['MODULE'] = '-module '
-    makefile_options['COMPILER_FLAGS'] += '-O3 -DSoA -ipo -qopenmp-simd -qopt-report=5 -qopt-streaming-stores auto '
-else:
-    print ('Non-intel compilers may not work properly.')
-    makefile_options['MODULE'] = '-J '
-    makefile_options['COMPILER_FLAGS'] += '-O3 -DSoA -fwhole-program -mavx2 -fopt-info-vec -fopt-info-vec-missed -ftree-vectorizer-verbose=5 '
+
+makefile_options['MODULE'] = '-module '
+makefile_options['COMPILER_FLAGS'] += '-O3 -DSoA -ipo -qopenmp-simd -qopt-report=5 -qopt-streaming-stores auto '
 
 if args['avx2']:
-    makefile_options['COMPILER_FLAGS'] += '-xCORE-AVX2 '
+    if args['intel']:
+        makefile_options['COMPILER_FLAGS'] += '-xCORE-AVX2 '
+    elif args['amd']:
+        makefile_options['COMPILER_FLAGS'] += '-march-core=avx2 '
 elif args['avx512']:
-    makefile_options['COMPILER_FLAGS'] += '-xCORE-AVX512 -qopt-zmm-usage:high '
+    if args['intel']:
+        makefile_options['COMPILER_FLAGS'] += '-xCORE-AVX512 -qopt-zmm-usage:high '
+    elif args['amd']:
+        raise NotImplementedError('AVX512 not supported on AMD CPUs')
 
 if args['1d']:
     makefile_options['EXE_NAME'] = 'tristan-mp1d'
@@ -323,7 +328,7 @@ print('  Absorbing boundaries:    ' + ('ON' if args['absorb'] else 'OFF'))
 
 print('TECHNICAL .....................................................................')
 
-print('  Compiler:                ' + ('intel' if args['intel'] else 'gcc') +
+print('  Compiler:                ' + ('intel') +
                                       (' [avx2]' if args['avx2'] else
                                        (' [avx512]' if args['avx512'] else '')
                                        ))
