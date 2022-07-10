@@ -1,290 +1,322 @@
-#include "../defs.F90"
-
 module m_exchangecurrents
   use m_globalnamespace
   use m_aux
   use m_errors
   use m_domain
   use m_fields
+
+#ifndef MPINONBLOCK
+  private :: findCnt, bufferSendArray
+#endif
+
 contains
 
 #ifndef MPINONBLOCK
+
   ! blocking MPI communication
   subroutine findCnt(ind1, ind2, ind3, fill_ghosts, send_cnt)
-    integer                       :: imin, imax, jmin, jmax, kmin, kmax, i, j, k
-    integer, intent(in)           :: ind1, ind2, ind3    
-    logical, intent(in)           :: fill_ghosts     
-    integer, intent(out)          :: send_cnt 
+    integer :: imin, imax, jmin, jmax, kmin, kmax
+    integer, intent(in) :: ind1, ind2, ind3
+    logical, intent(in) :: fill_ghosts
+    integer, intent(out) :: send_cnt
+    imin = -2 * NGHOST
+    imax = -2 * NGHOST
+    jmin = -2 * NGHOST
+    jmax = -2 * NGHOST
+    kmin = -2 * NGHOST
+    kmax = -2 * NGHOST
 
     ! highlight the region to send and save to `send_EB`
     if (.not. fill_ghosts) then
-       !   sending ghost zones + normal zones
-       if (ind1 .eq. 0) then
-          imin = -NGHOST; imax = this_meshblock%ptr%sx + NGHOST - 1
-       else if (ind1 .eq. -1) then
-          imin = -NGHOST; imax = NGHOST - 1
-       else if (ind1 .eq. 1) then
-          imin = this_meshblock%ptr%sx - NGHOST; imax = this_meshblock%ptr%sx + NGHOST - 1
-       end if
+      !   sending ghost zones + normal zones
+      if (ind1 .eq. 0) then
+        imin = -NGHOST; imax = this_meshblock % ptr % sx + NGHOST - 1
+      else if (ind1 .eq. -1) then
+        imin = -NGHOST; imax = NGHOST - 1
+      else if (ind1 .eq. 1) then
+        imin = this_meshblock % ptr % sx - NGHOST; imax = this_meshblock % ptr % sx + NGHOST - 1
+      end if
 
-       if (ind2 .eq. 0) then
-          jmin = -NGHOST; jmax = this_meshblock%ptr%sy + NGHOST - 1
-       else if (ind2 .eq. -1) then
-          jmin = -NGHOST; jmax = NGHOST - 1
-       else if (ind2 .eq. 1) then
-          jmin = this_meshblock%ptr%sy - NGHOST; jmax = this_meshblock%ptr%sy + NGHOST - 1
-       end if
+      if (ind2 .eq. 0) then
+        jmin = -NGHOST; jmax = this_meshblock % ptr % sy + NGHOST - 1
+      else if (ind2 .eq. -1) then
+        jmin = -NGHOST; jmax = NGHOST - 1
+      else if (ind2 .eq. 1) then
+        jmin = this_meshblock % ptr % sy - NGHOST; jmax = this_meshblock % ptr % sy + NGHOST - 1
+      end if
 
-       if (ind3 .eq. 0) then
-          kmin = -NGHOST; kmax = this_meshblock%ptr%sz + NGHOST - 1
-       else if (ind3 .eq. -1) then
-          kmin = -NGHOST; kmax = NGHOST - 1
-       else if (ind3 .eq. 1) then
-          kmin = this_meshblock%ptr%sz - NGHOST; kmax = this_meshblock%ptr%sz + NGHOST - 1
-       end if
+      if (ind3 .eq. 0) then
+        kmin = -NGHOST; kmax = this_meshblock % ptr % sz + NGHOST - 1
+      else if (ind3 .eq. -1) then
+        kmin = -NGHOST; kmax = NGHOST - 1
+      else if (ind3 .eq. 1) then
+        kmin = this_meshblock % ptr % sz - NGHOST; kmax = this_meshblock % ptr % sz + NGHOST - 1
+      end if
 #ifdef oneD
-       jmin = 0; jmax = 0
-       kmin = 0; kmax = 0
+      jmin = 0; jmax = 0
+      kmin = 0; kmax = 0
 #elif twoD
-       kmin = 0; kmax = 0
+      kmin = 0; kmax = 0
 #endif
     else
-       !   sending just the normal zones
-       if (ind1 .eq. 0) then
-          imin = 0; imax = this_meshblock%ptr%sx - 1
-       else if (ind1 .eq. -1) then
-          imin = 0; imax = NGHOST - 1
-       else if (ind1 .eq. 1) then
-          imin = this_meshblock%ptr%sx - NGHOST; imax = this_meshblock%ptr%sx - 1
-       end if
+      !   sending just the normal zones
+      if (ind1 .eq. 0) then
+        imin = 0; imax = this_meshblock % ptr % sx - 1
+      else if (ind1 .eq. -1) then
+        imin = 0; imax = NGHOST - 1
+      else if (ind1 .eq. 1) then
+        imin = this_meshblock % ptr % sx - NGHOST; imax = this_meshblock % ptr % sx - 1
+      end if
 
-       if (ind2 .eq. 0) then
-          jmin = 0; jmax = this_meshblock%ptr%sy - 1
-       else if (ind2 .eq. -1) then
-          jmin = 0; jmax = NGHOST - 1
-       else if (ind2 .eq. 1) then
-          jmin = this_meshblock%ptr%sy - NGHOST; jmax = this_meshblock%ptr%sy - 1
-       end if
+      if (ind2 .eq. 0) then
+        jmin = 0; jmax = this_meshblock % ptr % sy - 1
+      else if (ind2 .eq. -1) then
+        jmin = 0; jmax = NGHOST - 1
+      else if (ind2 .eq. 1) then
+        jmin = this_meshblock % ptr % sy - NGHOST; jmax = this_meshblock % ptr % sy - 1
+      end if
 
-       if (ind3 .eq. 0) then
-          kmin = 0; kmax = this_meshblock%ptr%sz - 1
-       else if (ind3 .eq. -1) then
-          kmin = 0; kmax = NGHOST - 1
-       else if (ind3 .eq. 1) then
-          kmin = this_meshblock%ptr%sz - NGHOST; kmax = this_meshblock%ptr%sz - 1
-       end if
+      if (ind3 .eq. 0) then
+        kmin = 0; kmax = this_meshblock % ptr % sz - 1
+      else if (ind3 .eq. -1) then
+        kmin = 0; kmax = NGHOST - 1
+      else if (ind3 .eq. 1) then
+        kmin = this_meshblock % ptr % sz - NGHOST; kmax = this_meshblock % ptr % sz - 1
+      end if
 #ifdef oneD
-       jmin = 0; jmax = 0
-       kmin = 0; kmax = 0
+      jmin = 0; jmax = 0
+      kmin = 0; kmax = 0
 #elif twoD
-       kmin = 0; kmax = 0
+      kmin = 0; kmax = 0
 #endif
     end if
 
-    send_cnt = 3*(imax-imin+1)*(jmax-jmin+1)*(kmax-kmin+1)
+    if ((imin .eq. -2 * NGHOST) .or. (imax .eq. -2 * NGHOST) .or. &
+        (jmin .eq. -2 * NGHOST) .or. (jmax .eq. -2 * NGHOST) .or. &
+        (kmin .eq. -2 * NGHOST) .or. (kmax .eq. -2 * NGHOST)) then
+      call throwError("Error: invalid index evaluation in findCnt")
+    end if
+
+    send_cnt = 3 * (imax - imin + 1) * (jmax - jmin + 1) * (kmax - kmin + 1)
   end subroutine findCnt
 
-  subroutine bufferSendArray( ind1, ind2, ind3,fill_ghosts, send_cnt)
-    integer                       :: imin, imax, jmin, jmax, kmin, kmax, i, j, k
-    integer, intent(in)           :: ind1, ind2, ind3
-    logical, intent(in)           :: fill_ghosts
-    integer, intent(out)          :: send_cnt
+  subroutine bufferSendArray(ind1, ind2, ind3, fill_ghosts, send_cnt)
+    integer :: imin, imax, jmin, jmax, kmin, kmax, i, j, k
+    integer, intent(in) :: ind1, ind2, ind3
+    logical, intent(in) :: fill_ghosts
+    integer, intent(out) :: send_cnt
+    imin = -2 * NGHOST
+    imax = -2 * NGHOST
+    jmin = -2 * NGHOST
+    jmax = -2 * NGHOST
+    kmin = -2 * NGHOST
+    kmax = -2 * NGHOST
 
     ! highlight the region to send and save to `send_EB`
     if (.not. fill_ghosts) then
-       !   sending ghost zones + normal zones
-       if (ind1 .eq. 0) then
-          imin = -NGHOST; imax = this_meshblock%ptr%sx + NGHOST - 1
-       else if (ind1 .eq. -1) then
-          imin = -NGHOST; imax = NGHOST - 1
-       else if (ind1 .eq. 1) then
-          imin = this_meshblock%ptr%sx - NGHOST; imax = this_meshblock%ptr%sx + NGHOST - 1
-       end if
+      !   sending ghost zones + normal zones
+      if (ind1 .eq. 0) then
+        imin = -NGHOST; imax = this_meshblock % ptr % sx + NGHOST - 1
+      else if (ind1 .eq. -1) then
+        imin = -NGHOST; imax = NGHOST - 1
+      else if (ind1 .eq. 1) then
+        imin = this_meshblock % ptr % sx - NGHOST; imax = this_meshblock % ptr % sx + NGHOST - 1
+      end if
 
-       if (ind2 .eq. 0) then
-          jmin = -NGHOST; jmax = this_meshblock%ptr%sy + NGHOST - 1
-       else if (ind2 .eq. -1) then
-          jmin = -NGHOST; jmax = NGHOST - 1
-       else if (ind2 .eq. 1) then
-          jmin = this_meshblock%ptr%sy - NGHOST; jmax = this_meshblock%ptr%sy + NGHOST - 1
-       end if
+      if (ind2 .eq. 0) then
+        jmin = -NGHOST; jmax = this_meshblock % ptr % sy + NGHOST - 1
+      else if (ind2 .eq. -1) then
+        jmin = -NGHOST; jmax = NGHOST - 1
+      else if (ind2 .eq. 1) then
+        jmin = this_meshblock % ptr % sy - NGHOST; jmax = this_meshblock % ptr % sy + NGHOST - 1
+      end if
 
-       if (ind3 .eq. 0) then
-          kmin = -NGHOST; kmax = this_meshblock%ptr%sz + NGHOST - 1
-       else if (ind3 .eq. -1) then
-          kmin = -NGHOST; kmax = NGHOST - 1
-       else if (ind3 .eq. 1) then
-          kmin = this_meshblock%ptr%sz - NGHOST; kmax = this_meshblock%ptr%sz + NGHOST - 1
-       end if
+      if (ind3 .eq. 0) then
+        kmin = -NGHOST; kmax = this_meshblock % ptr % sz + NGHOST - 1
+      else if (ind3 .eq. -1) then
+        kmin = -NGHOST; kmax = NGHOST - 1
+      else if (ind3 .eq. 1) then
+        kmin = this_meshblock % ptr % sz - NGHOST; kmax = this_meshblock % ptr % sz + NGHOST - 1
+      end if
 #ifdef oneD
-       jmin = 0; jmax = 0
-       kmin = 0; kmax = 0
+      jmin = 0; jmax = 0
+      kmin = 0; kmax = 0
 #elif twoD
-       kmin = 0; kmax = 0
+      kmin = 0; kmax = 0
 #endif
     else
-       !   sending just the normal zones
-       if (ind1 .eq. 0) then
-          imin = 0; imax = this_meshblock%ptr%sx - 1
-       else if (ind1 .eq. -1) then
-          imin = 0; imax = NGHOST - 1
-       else if (ind1 .eq. 1) then
-          imin = this_meshblock%ptr%sx - NGHOST; imax = this_meshblock%ptr%sx - 1
-       end if
+      !   sending just the normal zones
+      if (ind1 .eq. 0) then
+        imin = 0; imax = this_meshblock % ptr % sx - 1
+      else if (ind1 .eq. -1) then
+        imin = 0; imax = NGHOST - 1
+      else if (ind1 .eq. 1) then
+        imin = this_meshblock % ptr % sx - NGHOST; imax = this_meshblock % ptr % sx - 1
+      end if
 
-       if (ind2 .eq. 0) then
-          jmin = 0; jmax = this_meshblock%ptr%sy - 1
-       else if (ind2 .eq. -1) then
-          jmin = 0; jmax = NGHOST - 1
-       else if (ind2 .eq. 1) then
-          jmin = this_meshblock%ptr%sy - NGHOST; jmax = this_meshblock%ptr%sy - 1
-       end if
+      if (ind2 .eq. 0) then
+        jmin = 0; jmax = this_meshblock % ptr % sy - 1
+      else if (ind2 .eq. -1) then
+        jmin = 0; jmax = NGHOST - 1
+      else if (ind2 .eq. 1) then
+        jmin = this_meshblock % ptr % sy - NGHOST; jmax = this_meshblock % ptr % sy - 1
+      end if
 
-       if (ind3 .eq. 0) then
-          kmin = 0; kmax = this_meshblock%ptr%sz - 1
-       else if (ind3 .eq. -1) then
-          kmin = 0; kmax = NGHOST - 1
-       else if (ind3 .eq. 1) then
-          kmin = this_meshblock%ptr%sz - NGHOST; kmax = this_meshblock%ptr%sz - 1
-       end if
+      if (ind3 .eq. 0) then
+        kmin = 0; kmax = this_meshblock % ptr % sz - 1
+      else if (ind3 .eq. -1) then
+        kmin = 0; kmax = NGHOST - 1
+      else if (ind3 .eq. 1) then
+        kmin = this_meshblock % ptr % sz - NGHOST; kmax = this_meshblock % ptr % sz - 1
+      end if
 #ifdef oneD
-       jmin = 0; jmax = 0
-       kmin = 0; kmax = 0
+      jmin = 0; jmax = 0
+      kmin = 0; kmax = 0
 #elif twoD
-       kmin = 0; kmax = 0
+      kmin = 0; kmax = 0
 #endif
+    end if
+
+    if ((imin .eq. -2 * NGHOST) .or. (imax .eq. -2 * NGHOST) .or. &
+        (jmin .eq. -2 * NGHOST) .or. (jmax .eq. -2 * NGHOST) .or. &
+        (kmin .eq. -2 * NGHOST) .or. (kmax .eq. -2 * NGHOST)) then
+      call throwError("Error: invalid index evaluation in bufferSendArray")
     end if
 
     send_cnt = 1
     do i = imin, imax
-       do j = jmin, jmax
-          do k = kmin, kmax
-             send_EB(send_cnt + 0) = jx(i, j, k)
-             send_EB(send_cnt + 1) = jy(i, j, k)
-             send_EB(send_cnt + 2) = jz(i, j, k)
-             send_cnt = send_cnt + 3
-          end do
-       end do
+      do j = jmin, jmax
+        do k = kmin, kmax
+          send_EB(send_cnt + 0) = jx(i, j, k)
+          send_EB(send_cnt + 1) = jy(i, j, k)
+          send_EB(send_cnt + 2) = jz(i, j, k)
+          send_cnt = send_cnt + 3
+        end do
+      end do
     end do
     send_cnt = send_cnt - 1
   end subroutine bufferSendArray
 
   subroutine extractRecvArray(ind1, ind2, ind3, fill_ghosts)
     implicit none
-    integer                       :: imin, imax, jmin, jmax, kmin, kmax, i, j, k
-    integer                       :: send_cnt
-    integer, intent(in)           :: ind1, ind2, ind3
-    logical, intent(in)           :: fill_ghosts    
+    integer :: imin, imax, jmin, jmax, kmin, kmax, i, j, k
+    integer :: send_cnt
+    integer, intent(in) :: ind1, ind2, ind3
+    logical, intent(in) :: fill_ghosts
+    imin = -2 * NGHOST
+    imax = -2 * NGHOST
+    jmin = -2 * NGHOST
+    jmax = -2 * NGHOST
+    kmin = -2 * NGHOST
+    kmax = -2 * NGHOST
 
     if (.not. fill_ghosts) then
-       !   write to ghosts + normal zones
-       if (ind1 .eq. 0) then
-          imin = -NGHOST; imax = this_meshblock%ptr%sx + NGHOST - 1
-       else if (ind1 .eq. -1) then
-          imin = -NGHOST; imax = NGHOST - 1
-       else if (ind1 .eq. 1) then
-          imin = this_meshblock%ptr%sx - NGHOST; imax = this_meshblock%ptr%sx + NGHOST - 1
-       end if
+      !   write to ghosts + normal zones
+      if (ind1 .eq. 0) then
+        imin = -NGHOST; imax = this_meshblock % ptr % sx + NGHOST - 1
+      else if (ind1 .eq. -1) then
+        imin = -NGHOST; imax = NGHOST - 1
+      else if (ind1 .eq. 1) then
+        imin = this_meshblock % ptr % sx - NGHOST; imax = this_meshblock % ptr % sx + NGHOST - 1
+      end if
 
-       if (ind2 .eq. 0) then
-          jmin = -NGHOST; jmax = this_meshblock%ptr%sy + NGHOST - 1
-       else if (ind2 .eq. -1) then
-          jmin = -NGHOST; jmax = NGHOST - 1
-       else if (ind2 .eq. 1) then
-          jmin = this_meshblock%ptr%sy - NGHOST; jmax = this_meshblock%ptr%sy + NGHOST - 1
-       end if
+      if (ind2 .eq. 0) then
+        jmin = -NGHOST; jmax = this_meshblock % ptr % sy + NGHOST - 1
+      else if (ind2 .eq. -1) then
+        jmin = -NGHOST; jmax = NGHOST - 1
+      else if (ind2 .eq. 1) then
+        jmin = this_meshblock % ptr % sy - NGHOST; jmax = this_meshblock % ptr % sy + NGHOST - 1
+      end if
 
-       if (ind3 .eq. 0) then
-          kmin = -NGHOST; kmax = this_meshblock%ptr%sz + NGHOST - 1
-       else if (ind3 .eq. -1) then
-          kmin = -NGHOST; kmax = NGHOST - 1
-       else if (ind3 .eq. 1) then
-          kmin = this_meshblock%ptr%sz - NGHOST; kmax = this_meshblock%ptr%sz + NGHOST - 1
-       end if
+      if (ind3 .eq. 0) then
+        kmin = -NGHOST; kmax = this_meshblock % ptr % sz + NGHOST - 1
+      else if (ind3 .eq. -1) then
+        kmin = -NGHOST; kmax = NGHOST - 1
+      else if (ind3 .eq. 1) then
+        kmin = this_meshblock % ptr % sz - NGHOST; kmax = this_meshblock % ptr % sz + NGHOST - 1
+      end if
 #ifdef oneD
-       jmin = 0; jmax = 0
-       kmin = 0; kmax = 0
+      jmin = 0; jmax = 0
+      kmin = 0; kmax = 0
 #elif twoD
-       kmin = 0; kmax = 0
+      kmin = 0; kmax = 0
 #endif
     else
-       !   write to ghosts
-       if (ind1 .eq. 0) then
-          imin = 0; imax = this_meshblock%ptr%sx - 1
-       else if (ind1 .eq. -1) then
-          imin = -NGHOST; imax = -1
-       else if (ind1 .eq. 1) then
-          imin = this_meshblock%ptr%sx; imax = this_meshblock%ptr%sx + NGHOST - 1
-       end if
-       
-       if (ind2 .eq. 0) then
-          jmin = 0; jmax = this_meshblock%ptr%sy - 1
-       else if (ind2 .eq. -1) then
-          jmin = -NGHOST; jmax = -1
-       else if (ind2 .eq. 1) then
-          jmin = this_meshblock%ptr%sy; jmax = this_meshblock%ptr%sy + NGHOST - 1
-       end if
+      !   write to ghosts
+      if (ind1 .eq. 0) then
+        imin = 0; imax = this_meshblock % ptr % sx - 1
+      else if (ind1 .eq. -1) then
+        imin = -NGHOST; imax = -1
+      else if (ind1 .eq. 1) then
+        imin = this_meshblock % ptr % sx; imax = this_meshblock % ptr % sx + NGHOST - 1
+      end if
 
-       if (ind3 .eq. 0) then
-          kmin = 0; kmax = this_meshblock%ptr%sz - 1
-       else if (ind3 .eq. -1) then
-          kmin = -NGHOST; kmax = -1
-       else if (ind3 .eq. 1) then
-          kmin = this_meshblock%ptr%sz; kmax = this_meshblock%ptr%sz + NGHOST - 1
-       end if
+      if (ind2 .eq. 0) then
+        jmin = 0; jmax = this_meshblock % ptr % sy - 1
+      else if (ind2 .eq. -1) then
+        jmin = -NGHOST; jmax = -1
+      else if (ind2 .eq. 1) then
+        jmin = this_meshblock % ptr % sy; jmax = this_meshblock % ptr % sy + NGHOST - 1
+      end if
+
+      if (ind3 .eq. 0) then
+        kmin = 0; kmax = this_meshblock % ptr % sz - 1
+      else if (ind3 .eq. -1) then
+        kmin = -NGHOST; kmax = -1
+      else if (ind3 .eq. 1) then
+        kmin = this_meshblock % ptr % sz; kmax = this_meshblock % ptr % sz + NGHOST - 1
+      end if
 #ifdef oneD
-       jmin = 0; jmax = 0
-       kmin = 0; kmax = 0
+      jmin = 0; jmax = 0
+      kmin = 0; kmax = 0
 #elif twoD
-       kmin = 0; kmax = 0
+      kmin = 0; kmax = 0
 #endif
     end if
-    
+    if ((imin .eq. -2 * NGHOST) .or. (imax .eq. -2 * NGHOST) .or. &
+        (jmin .eq. -2 * NGHOST) .or. (jmax .eq. -2 * NGHOST) .or. &
+        (kmin .eq. -2 * NGHOST) .or. (kmax .eq. -2 * NGHOST)) then
+      call throwError("Error: invalid index evaluation in extractRecvArray")
+    end if
 
     send_cnt = 1
     do i = imin, imax
-       do j = jmin, jmax
-          do k = kmin, kmax
-             if (.not. fill_ghosts) then
-                ! add to existing values
-                jx_buff(i, j, k) = jx_buff(i, j, k) + recv_fld(send_cnt + 0)
-                jy_buff(i, j, k) = jy_buff(i, j, k) + recv_fld(send_cnt + 1)
-                jz_buff(i, j, k) = jz_buff(i, j, k) + recv_fld(send_cnt + 2)
-             else
-                ! overwrite the existing values
-                jx(i, j, k) = recv_fld(send_cnt + 0)
-                jy(i, j, k) = recv_fld(send_cnt + 1)
-                jz(i, j, k) = recv_fld(send_cnt + 2)
-             end if
-             send_cnt = send_cnt + 3
-          end do
-       end do
+      do j = jmin, jmax
+        do k = kmin, kmax
+          if (.not. fill_ghosts) then
+            ! add to existing values
+            jx_buff(i, j, k) = jx_buff(i, j, k) + recv_fld(send_cnt + 0)
+            jy_buff(i, j, k) = jy_buff(i, j, k) + recv_fld(send_cnt + 1)
+            jz_buff(i, j, k) = jz_buff(i, j, k) + recv_fld(send_cnt + 2)
+          else
+            ! overwrite the existing values
+            jx(i, j, k) = recv_fld(send_cnt + 0)
+            jy(i, j, k) = recv_fld(send_cnt + 1)
+            jz(i, j, k) = recv_fld(send_cnt + 2)
+          end if
+          send_cnt = send_cnt + 3
+        end do
+      end do
     end do
-    
+
   end subroutine extractRecvArray
 
-    
   subroutine exchangeCurrents(fill_ghosts_Q)
     implicit none
-    integer           :: i, j, k, imin, imax, jmin, jmax, kmin, kmax
-    integer           :: ind1, ind2, ind3, cntr, n_cntr
-    integer           :: cnt, ierr
-    integer           :: mpi_sendto, mpi_recvfrom, mpi_tag
-    integer           :: mpi_offset
-    logical           :: fill_ghosts
-    logical           :: should_send, should_recv
+    integer :: ind1, ind2, ind3
+    integer :: cnt, ierr
+    integer :: mpi_sendto, mpi_recvfrom, mpi_tag
+    logical :: fill_ghosts
+    logical :: should_send, should_recv
     logical, optional, intent(in) :: fill_ghosts_Q
 
-    #ifdef MPI08
-      type(MPI_REQUEST), allocatable  :: mpi_req(:)
-      type(MPI_STATUS)                :: istat
-    #endif
+#ifdef MPI08
+    type(MPI_STATUS) :: istat
+#endif
 
-    #ifdef MPI
-      integer, allocatable            :: mpi_req(:)
-      integer                         :: istat(MPI_STATUS_SIZE)
-    #endif
-
+#ifdef MPI
+    integer :: istat(MPI_STATUS_SIZE)
+#endif
 
     if (present(fill_ghosts_Q)) then
       fill_ghosts = fill_ghosts_Q
@@ -293,53 +325,53 @@ contains
     end if
 
     if (.not. fill_ghosts) then
-      jx_buff(:,:,:) = 0.0
-      jy_buff(:,:,:) = 0.0
-      jz_buff(:,:,:) = 0.0
+      jx_buff(:, :, :) = 0.0
+      jy_buff(:, :, :) = 0.0
+      jz_buff(:, :, :) = 0.0
     end if
 
     do ind1 = -1, 1
       do ind2 = -1, 1
         do ind3 = -1, 1
           if ((ind1 .eq. 0) .and. (ind2 .eq. 0) .and. (ind3 .eq. 0)) cycle
-          #ifdef oneD
-            if ((ind2 .ne. 0) .or. (ind3 .ne. 0)) cycle
-          #elif twoD
-            if (ind3 .ne. 0) cycle
-          #endif
+#ifdef oneD
+          if ((ind2 .ne. 0) .or. (ind3 .ne. 0)) cycle
+#elif twoD
+          if (ind3 .ne. 0) cycle
+#endif
 
           mpi_tag = (ind3 + 2) + 3 * (ind2 + 1) + 9 * (ind1 + 1) + 50
 
-          should_send = associated(this_meshblock%ptr%neighbor(ind1,ind2,ind3)%ptr)
-          should_recv = associated(this_meshblock%ptr%neighbor(-ind1,-ind2,-ind3)%ptr)
+          should_send = associated(this_meshblock % ptr % neighbor(ind1, ind2, ind3) % ptr)
+          should_recv = associated(this_meshblock % ptr % neighbor(-ind1, -ind2, -ind3) % ptr)
           if (should_send .and. should_recv) then
 
-             mpi_sendto = this_meshblock%ptr%neighbor(ind1,ind2,ind3)%ptr%rnk
-             mpi_recvfrom = this_meshblock%ptr%neighbor(-ind1,-ind2,-ind3)%ptr%rnk
+            mpi_sendto = this_meshblock % ptr % neighbor(ind1, ind2, ind3) % ptr % rnk
+            mpi_recvfrom = this_meshblock % ptr % neighbor(-ind1, -ind2, -ind3) % ptr % rnk
 
-             call bufferSendArray(ind1, ind2, ind3, fill_ghosts, cnt)
-             call MPI_SENDRECV(send_EB(1 : cnt), cnt, MPI_REAL, mpi_sendto, mpi_tag,&
-                  & recv_fld(1 : cnt), cnt, MPI_REAL, mpi_recvfrom, mpi_tag,&
-                  & MPI_COMM_WORLD, istat, ierr)
-             call extractRecvArray(-ind1, -ind2, -ind3, fill_ghosts)
-          else if ((.not. should_send) .and. should_recv) then
-            mpi_recvfrom = this_meshblock%ptr%neighbor(-ind1,-ind2,-ind3)%ptr%rnk 
-            call findCnt(-ind1, -ind2, -ind3, fill_ghosts, cnt)
-            call MPI_RECV(recv_fld(1 : cnt),cnt, MPI_REAL,mpi_recvfrom, mpi_tag, MPI_COMM_WORLD, istat, ierr)
-            call extractRecvArray(-ind1, -ind2, -ind3, fill_ghosts)
-         else if ((.not. should_recv) .and. should_send) then
-            mpi_sendto = this_meshblock%ptr%neighbor(ind1,ind2,ind3)%ptr%rnk 
             call bufferSendArray(ind1, ind2, ind3, fill_ghosts, cnt)
-            call MPI_SEND(send_EB(1 : cnt), cnt, MPI_REAL,mpi_sendto, mpi_tag, MPI_COMM_WORLD, ierr)
-         end if
+            call MPI_SENDRECV(send_EB(1:cnt), cnt, default_mpi_real, mpi_sendto, mpi_tag, &
+                              recv_fld(1:cnt), cnt, default_mpi_real, mpi_recvfrom, mpi_tag, &
+                              MPI_COMM_WORLD, istat, ierr)
+            call extractRecvArray(-ind1, -ind2, -ind3, fill_ghosts)
+          else if ((.not. should_send) .and. should_recv) then
+            mpi_recvfrom = this_meshblock % ptr % neighbor(-ind1, -ind2, -ind3) % ptr % rnk
+            call findCnt(-ind1, -ind2, -ind3, fill_ghosts, cnt)
+            call MPI_RECV(recv_fld(1:cnt), cnt, default_mpi_real, mpi_recvfrom, mpi_tag, MPI_COMM_WORLD, istat, ierr)
+            call extractRecvArray(-ind1, -ind2, -ind3, fill_ghosts)
+          else if ((.not. should_recv) .and. should_send) then
+            mpi_sendto = this_meshblock % ptr % neighbor(ind1, ind2, ind3) % ptr % rnk
+            call bufferSendArray(ind1, ind2, ind3, fill_ghosts, cnt)
+            call MPI_SEND(send_EB(1:cnt), cnt, default_mpi_real, mpi_sendto, mpi_tag, MPI_COMM_WORLD, ierr)
+          end if
         end do
       end do
     end do
 
     if (.not. fill_ghosts) then
-      jx(:,:,:) = jx(:,:,:) + jx_buff(:,:,:)
-      jy(:,:,:) = jy(:,:,:) + jy_buff(:,:,:)
-      jz(:,:,:) = jz(:,:,:) + jz_buff(:,:,:)
+      jx(:, :, :) = jx(:, :, :) + jx_buff(:, :, :)
+      jy(:, :, :) = jy(:, :, :) + jy_buff(:, :, :)
+      jz(:, :, :) = jz(:, :, :) + jz_buff(:, :, :)
     end if
 
     call printDiag("exchangeCurrents()", 2)
@@ -350,26 +382,26 @@ contains
   ! non-blocking MPI communication
   subroutine exchangeCurrents(fill_ghosts_Q)
     implicit none
-    integer           :: i, j, k, imin, imax, jmin, jmax, kmin, kmax
-    integer           :: ind1, ind2, ind3, cntr, n_cntr
-    integer           :: send_cnt, recv_cnt, ierr
-    integer           :: mpi_sendto, mpi_recvfrom, mpi_sendtag, mpi_recvtag
-    integer           :: mpi_offset
-    logical           :: fill_ghosts
+    integer :: i, j, k, imin, imax, jmin, jmax, kmin, kmax
+    integer :: ind1, ind2, ind3, cntr, n_cntr
+    integer :: send_cnt, recv_cnt, ierr
+    integer :: mpi_sendto, mpi_recvfrom, mpi_sendtag, mpi_recvtag
+    integer :: mpi_offset
+    logical :: fill_ghosts
     logical, optional, intent(in) :: fill_ghosts_Q
 
 #ifdef MPI08
-    type(MPI_REQUEST), allocatable  :: mpi_req(:)
-    type(MPI_STATUS)                :: istat
+    type(MPI_REQUEST), allocatable :: mpi_req(:)
+    type(MPI_STATUS) :: istat
 #endif
 
 #ifdef MPI
-    integer, allocatable            :: mpi_req(:)
-    integer                         :: istat(MPI_STATUS_SIZE)
+    integer, allocatable :: mpi_req(:)
+    integer :: istat(MPI_STATUS_SIZE)
 #endif
 
-    logical, allocatable              :: mpi_sendflags(:), mpi_recvflags(:)
-    logical                           :: quit_loop
+    logical, allocatable :: mpi_sendflags(:), mpi_recvflags(:)
+    logical :: quit_loop
 
     if (present(fill_ghosts_Q)) then
       fill_ghosts = fill_ghosts_Q
@@ -377,14 +409,14 @@ contains
       fill_ghosts = .false.
     end if
 
-    allocate(mpi_req(sendrecv_neighbors))
-    allocate(mpi_sendflags(sendrecv_neighbors))
-    allocate(mpi_recvflags(sendrecv_neighbors))
+    allocate (mpi_req(sendrecv_neighbors))
+    allocate (mpi_sendflags(sendrecv_neighbors))
+    allocate (mpi_recvflags(sendrecv_neighbors))
 
     if (.not. fill_ghosts) then
-      jx_buff(:,:,:) = 0.0
-      jy_buff(:,:,:) = 0.0
-      jz_buff(:,:,:) = 0.0
+      jx_buff(:, :, :) = 0.0
+      jy_buff(:, :, :) = 0.0
+      jz_buff(:, :, :) = 0.0
     end if
 
     ! exchange the ghost cells + the real cells
@@ -398,35 +430,35 @@ contains
 #elif twoD
           if (ind3 .ne. 0) cycle
 #endif
-          if (.not. associated(this_meshblock%ptr%neighbor(ind1,ind2,ind3)%ptr)) cycle
+          if (.not. associated(this_meshblock % ptr % neighbor(ind1, ind2, ind3) % ptr)) cycle
           cntr = cntr + 1
 
-          mpi_sendto = this_meshblock%ptr%neighbor(ind1,ind2,ind3)%ptr%rnk
+          mpi_sendto = this_meshblock % ptr % neighbor(ind1, ind2, ind3) % ptr % rnk
           mpi_sendtag = (ind3 + 2) + 3 * (ind2 + 1) + 9 * (ind1 + 1)
 
           ! highlight the region to send and save to `send_fld`
           if (.not. fill_ghosts) then
             !   sending ghost zones + normal zones
             if (ind1 .eq. 0) then
-              imin = -NGHOST; imax = this_meshblock%ptr%sx + NGHOST - 1
+              imin = -NGHOST; imax = this_meshblock % ptr % sx + NGHOST - 1
             else if (ind1 .eq. -1) then
               imin = -NGHOST; imax = NGHOST - 1
             else if (ind1 .eq. 1) then
-              imin = this_meshblock%ptr%sx - NGHOST; imax = this_meshblock%ptr%sx + NGHOST - 1
+              imin = this_meshblock % ptr % sx - NGHOST; imax = this_meshblock % ptr % sx + NGHOST - 1
             end if
             if (ind2 .eq. 0) then
-              jmin = -NGHOST; jmax = this_meshblock%ptr%sy + NGHOST - 1
+              jmin = -NGHOST; jmax = this_meshblock % ptr % sy + NGHOST - 1
             else if (ind2 .eq. -1) then
               jmin = -NGHOST; jmax = NGHOST - 1
             else if (ind2 .eq. 1) then
-              jmin = this_meshblock%ptr%sy - NGHOST; jmax = this_meshblock%ptr%sy + NGHOST - 1
+              jmin = this_meshblock % ptr % sy - NGHOST; jmax = this_meshblock % ptr % sy + NGHOST - 1
             end if
             if (ind3 .eq. 0) then
-              kmin = -NGHOST; kmax = this_meshblock%ptr%sz + NGHOST - 1
+              kmin = -NGHOST; kmax = this_meshblock % ptr % sz + NGHOST - 1
             else if (ind3 .eq. -1) then
               kmin = -NGHOST; kmax = NGHOST - 1
             else if (ind3 .eq. 1) then
-              kmin = this_meshblock%ptr%sz - NGHOST; kmax = this_meshblock%ptr%sz + NGHOST - 1
+              kmin = this_meshblock % ptr % sz - NGHOST; kmax = this_meshblock % ptr % sz + NGHOST - 1
             end if
 #ifdef oneD
             jmin = 0; jmax = 0
@@ -437,25 +469,25 @@ contains
           else
             !   sending just the normal zones
             if (ind1 .eq. 0) then
-              imin = 0; imax = this_meshblock%ptr%sx - 1
+              imin = 0; imax = this_meshblock % ptr % sx - 1
             else if (ind1 .eq. -1) then
               imin = 0; imax = NGHOST - 1
             else if (ind1 .eq. 1) then
-              imin = this_meshblock%ptr%sx - NGHOST; imax = this_meshblock%ptr%sx - 1
+              imin = this_meshblock % ptr % sx - NGHOST; imax = this_meshblock % ptr % sx - 1
             end if
             if (ind2 .eq. 0) then
-              jmin = 0; jmax = this_meshblock%ptr%sy - 1
+              jmin = 0; jmax = this_meshblock % ptr % sy - 1
             else if (ind2 .eq. -1) then
               jmin = 0; jmax = NGHOST - 1
             else if (ind2 .eq. 1) then
-              jmin = this_meshblock%ptr%sy - NGHOST; jmax = this_meshblock%ptr%sy - 1
+              jmin = this_meshblock % ptr % sy - NGHOST; jmax = this_meshblock % ptr % sy - 1
             end if
             if (ind3 .eq. 0) then
-              kmin = 0; kmax = this_meshblock%ptr%sz - 1
+              kmin = 0; kmax = this_meshblock % ptr % sz - 1
             else if (ind3 .eq. -1) then
               kmin = 0; kmax = NGHOST - 1
             else if (ind3 .eq. 1) then
-              kmin = this_meshblock%ptr%sz - NGHOST; kmax = this_meshblock%ptr%sz - 1
+              kmin = this_meshblock % ptr % sz - NGHOST; kmax = this_meshblock % ptr % sz - 1
             end if
 #ifdef oneD
             jmin = 0; jmax = 0
@@ -482,8 +514,8 @@ contains
           send_cnt = send_cnt - 1
 
           ! post non-blocking send requests
-          call MPI_ISEND(send_fld(mpi_offset + 1 : mpi_offset + send_cnt), send_cnt, MPI_REAL,&
-          & mpi_sendto, mpi_sendtag, MPI_COMM_WORLD, mpi_req(cntr), ierr)
+          call MPI_ISEND(send_fld(mpi_offset + 1:mpi_offset + send_cnt), send_cnt, default_mpi_real, &
+                         mpi_sendto, mpi_sendtag, MPI_COMM_WORLD, mpi_req(cntr), ierr)
         end do
       end do
     end do
@@ -504,7 +536,7 @@ contains
 #elif twoD
             if (ind3 .ne. 0) cycle
 #endif
-            if (.not. associated(this_meshblock%ptr%neighbor(ind1,ind2,ind3)%ptr)) cycle
+            if (.not. associated(this_meshblock % ptr % neighbor(ind1, ind2, ind3) % ptr)) cycle
             cntr = cntr + 1
 
             if (.not. mpi_sendflags(cntr)) then
@@ -513,7 +545,7 @@ contains
               call MPI_TEST(mpi_req(cntr), mpi_sendflags(cntr), istat, ierr)
             end if
 
-            mpi_recvfrom = this_meshblock%ptr%neighbor(ind1,ind2,ind3)%ptr%rnk
+            mpi_recvfrom = this_meshblock % ptr % neighbor(ind1, ind2, ind3) % ptr % rnk
             mpi_recvtag = (-ind3 + 2) + 3 * (-ind2 + 1) + 9 * (-ind1 + 1)
 
             if (.not. mpi_recvflags(cntr)) then
@@ -521,34 +553,34 @@ contains
               call MPI_IPROBE(mpi_recvfrom, mpi_recvtag, MPI_COMM_WORLD, mpi_recvflags(cntr), istat, ierr)
               if (mpi_recvflags(cntr)) then
                 ! if the message is ready to be received -> get the size & receive it
-                call MPI_GET_COUNT(istat, MPI_REAL, recv_cnt, ierr)
-                call MPI_RECV(recv_fld(1:recv_cnt), recv_cnt, MPI_REAL,&
-                & mpi_recvfrom, mpi_recvtag, MPI_COMM_WORLD, istat, ierr)
+                call MPI_GET_COUNT(istat, default_mpi_real, recv_cnt, ierr)
+                call MPI_RECV(recv_fld(1:recv_cnt), recv_cnt, default_mpi_real, &
+                              mpi_recvfrom, mpi_recvtag, MPI_COMM_WORLD, istat, ierr)
 
                 ! write received data to local memory
                 ! highlight the region to extract the `recv_fld`
                 if (.not. fill_ghosts) then
                   !   write to ghosts + normal zones
                   if (ind1 .eq. 0) then
-                    imin = -NGHOST; imax = this_meshblock%ptr%sx + NGHOST - 1
+                    imin = -NGHOST; imax = this_meshblock % ptr % sx + NGHOST - 1
                   else if (ind1 .eq. -1) then
                     imin = -NGHOST; imax = NGHOST - 1
                   else if (ind1 .eq. 1) then
-                    imin = this_meshblock%ptr%sx - NGHOST; imax = this_meshblock%ptr%sx + NGHOST - 1
+                    imin = this_meshblock % ptr % sx - NGHOST; imax = this_meshblock % ptr % sx + NGHOST - 1
                   end if
                   if (ind2 .eq. 0) then
-                    jmin = -NGHOST; jmax = this_meshblock%ptr%sy + NGHOST - 1
+                    jmin = -NGHOST; jmax = this_meshblock % ptr % sy + NGHOST - 1
                   else if (ind2 .eq. -1) then
                     jmin = -NGHOST; jmax = NGHOST - 1
                   else if (ind2 .eq. 1) then
-                    jmin = this_meshblock%ptr%sy - NGHOST; jmax = this_meshblock%ptr%sy + NGHOST - 1
+                    jmin = this_meshblock % ptr % sy - NGHOST; jmax = this_meshblock % ptr % sy + NGHOST - 1
                   end if
                   if (ind3 .eq. 0) then
-                    kmin = -NGHOST; kmax = this_meshblock%ptr%sz + NGHOST - 1
+                    kmin = -NGHOST; kmax = this_meshblock % ptr % sz + NGHOST - 1
                   else if (ind3 .eq. -1) then
                     kmin = -NGHOST; kmax = NGHOST - 1
                   else if (ind3 .eq. 1) then
-                    kmin = this_meshblock%ptr%sz - NGHOST; kmax = this_meshblock%ptr%sz + NGHOST - 1
+                    kmin = this_meshblock % ptr % sz - NGHOST; kmax = this_meshblock % ptr % sz + NGHOST - 1
                   end if
 #ifdef oneD
                   jmin = 0; jmax = 0
@@ -559,25 +591,25 @@ contains
                 else
                   !   write to ghosts
                   if (ind1 .eq. 0) then
-                    imin = 0; imax = this_meshblock%ptr%sx - 1
+                    imin = 0; imax = this_meshblock % ptr % sx - 1
                   else if (ind1 .eq. -1) then
                     imin = -NGHOST; imax = -1
                   else if (ind1 .eq. 1) then
-                    imin = this_meshblock%ptr%sx; imax = this_meshblock%ptr%sx + NGHOST - 1
+                    imin = this_meshblock % ptr % sx; imax = this_meshblock % ptr % sx + NGHOST - 1
                   end if
                   if (ind2 .eq. 0) then
-                    jmin = 0; jmax = this_meshblock%ptr%sy - 1
+                    jmin = 0; jmax = this_meshblock % ptr % sy - 1
                   else if (ind2 .eq. -1) then
                     jmin = -NGHOST; jmax = -1
                   else if (ind2 .eq. 1) then
-                    jmin = this_meshblock%ptr%sy; jmax = this_meshblock%ptr%sy + NGHOST - 1
+                    jmin = this_meshblock % ptr % sy; jmax = this_meshblock % ptr % sy + NGHOST - 1
                   end if
                   if (ind3 .eq. 0) then
-                    kmin = 0; kmax = this_meshblock%ptr%sz - 1
+                    kmin = 0; kmax = this_meshblock % ptr % sz - 1
                   else if (ind3 .eq. -1) then
                     kmin = -NGHOST; kmax = -1
                   else if (ind3 .eq. 1) then
-                    kmin = this_meshblock%ptr%sz; kmax = this_meshblock%ptr%sz + NGHOST - 1
+                    kmin = this_meshblock % ptr % sz; kmax = this_meshblock % ptr % sz + NGHOST - 1
                   end if
 #ifdef oneD
                   jmin = 0; jmax = 0
@@ -615,9 +647,9 @@ contains
     end do ! global loop
 
     if (.not. fill_ghosts) then
-      jx(:,:,:) = jx(:,:,:) + jx_buff(:,:,:)
-      jy(:,:,:) = jy(:,:,:) + jy_buff(:,:,:)
-      jz(:,:,:) = jz(:,:,:) + jz_buff(:,:,:)
+      jx(:, :, :) = jx(:, :, :) + jx_buff(:, :, :)
+      jy(:, :, :) = jy(:, :, :) + jy_buff(:, :, :)
+      jz(:, :, :) = jz(:, :, :) + jz_buff(:, :, :)
     end if
 
     call printDiag("exchangeCurrents()", 2)

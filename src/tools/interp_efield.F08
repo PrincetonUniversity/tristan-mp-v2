@@ -65,14 +65,14 @@
   !e_y
   c000 = 0.5 * (ey(lind, -NGHOST, -NGHOST) + ey(lind - iy, -NGHOST, -NGHOST))
   c100 = 0.5 * (ey(lind + 1, -NGHOST, -NGHOST) + ey(lind + 1 - iy, -NGHOST, -NGHOST))
-  c010 = 0.5 * (ey(lind, -NGHOST, -NGHOST) + ey( lind + iy, -NGHOST, -NGHOST))
+  c010 = 0.5 * (ey(lind, -NGHOST, -NGHOST) + ey(lind + iy, -NGHOST, -NGHOST))
   c110 = 0.5 * (ey(lind + 1, -NGHOST, -NGHOST) + ey(lind + 1 + iy, -NGHOST, -NGHOST))
   c00 = c000 * (1.0 - dx) + c100 * dx
   c10 = c010 * (1.0 - dx) + c110 * dx
   c0 = c00 * (1.0 - dy) + c10 * dy
   c001 = 0.5 * (ey(lind + iz, -NGHOST, -NGHOST) + ey(lind - iy + iz, -NGHOST, -NGHOST))
   c101 = 0.5 * (ey(lind + 1 + iz, -NGHOST, -NGHOST) + ey(lind + 1 - iy + iz, -NGHOST, -NGHOST))
-  c011 = 0.5 * (ey(lind + iz, -NGHOST, -NGHOST) + ey( lind + iy + iz, -NGHOST, -NGHOST))
+  c011 = 0.5 * (ey(lind + iz, -NGHOST, -NGHOST) + ey(lind + iy + iz, -NGHOST, -NGHOST))
   c111 = 0.5 * (ey(lind + 1 + iz, -NGHOST, -NGHOST) + ey(lind + 1 + iy + iz, -NGHOST, -NGHOST))
   c01 = c001 * (1.0 - dx) + c101 * dx
   c11 = c011 * (1.0 - dx) + c111 * dx
@@ -84,9 +84,9 @@
   c100 = 0.5 * (ez(lind + 1, -NGHOST, -NGHOST) + ez(lind + 1 - iz, -NGHOST, -NGHOST))
   c010 = 0.5 * (ez(lind + iy, -NGHOST, -NGHOST) + ez(lind + iy - iz, -NGHOST, -NGHOST))
   c110 = 0.5 * (ez(lind + 1 + iy, -NGHOST, -NGHOST) + ez(lind + 1 + iy - iz, -NGHOST, -NGHOST))
-  c001 = 0.5 * (ez(lind, -NGHOST, -NGHOST) + ez( lind + iz, -NGHOST, -NGHOST))
+  c001 = 0.5 * (ez(lind, -NGHOST, -NGHOST) + ez(lind + iz, -NGHOST, -NGHOST))
   c101 = 0.5 * (ez(lind + 1, -NGHOST, -NGHOST) + ez(lind + 1 + iz, -NGHOST, -NGHOST))
-  c011 = 0.5 * (ez(lind + iy, -NGHOST, -NGHOST) + ez( lind + iy + iz, -NGHOST, -NGHOST))
+  c011 = 0.5 * (ez(lind + iy, -NGHOST, -NGHOST) + ez(lind + iy + iz, -NGHOST, -NGHOST))
   c111 = 0.5 * (ez(lind + 1 + iy, -NGHOST, -NGHOST) + ez(lind + 1 + iy + iz, -NGHOST, -NGHOST))
   c00 = c000 * (1.0 - dx) + c100 * dx
   c01 = c001 * (1.0 - dx) + c101 * dx

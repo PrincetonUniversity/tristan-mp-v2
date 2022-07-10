@@ -1,5 +1,3 @@
-#include "../src/defs.F90"
-
 module m_userfile
   use m_globalnamespace
   use m_aux
@@ -24,37 +22,37 @@ contains
     implicit none
   end subroutine userReadInput
 
-  function userSpatialDistribution(x_glob, y_glob, z_glob,&
-                                 & dummy1, dummy2, dummy3)
+  function userSpatialDistribution(x_glob, y_glob, z_glob, &
+                                   dummy1, dummy2, dummy3)
     real :: userSpatialDistribution
-    real, intent(in), optional  :: x_glob, y_glob, z_glob
-    real, intent(in), optional  :: dummy1, dummy2, dummy3
+    real, intent(in), optional :: x_glob, y_glob, z_glob
+    real, intent(in), optional :: dummy1, dummy2, dummy3
 
     return
   end function
 
-  function userSLBload(x_glob, y_glob, z_glob,&
-                     & dummy1, dummy2, dummy3)
+  function userSLBload(x_glob, y_glob, z_glob, &
+                       dummy1, dummy2, dummy3)
     real :: userSLBload
     ! global coordinates
-    real, intent(in), optional  :: x_glob, y_glob, z_glob
+    real, intent(in), optional :: x_glob, y_glob, z_glob
     ! global box dimensions
-    real, intent(in), optional  :: dummy1, dummy2, dummy3
+    real, intent(in), optional :: dummy1, dummy2, dummy3
     return
   end function
 
   subroutine userInitParticles()
     implicit none
     integer :: npart, n
-    real    :: x_glob, y_glob, z_glob, u_, v_, w_
-    procedure (spatialDistribution), pointer :: spat_distr_ptr => null()
+    real :: x_glob, y_glob, z_glob, u_, v_, w_
+    procedure(spatialDistribution), pointer :: spat_distr_ptr => null()
     spat_distr_ptr => userSpatialDistribution
 
-    npart = global_mesh%sx * global_mesh%sy * global_mesh%sz * ppc0
+    npart = global_mesh % sx * global_mesh % sy * global_mesh % sz * ppc0
     do n = 1, npart
-      x_glob = random(dseed) * global_mesh%sx
-      y_glob = random(dseed) * global_mesh%sy
-      z_glob = random(dseed) * global_mesh%sz
+      x_glob = random(dseed) * global_mesh % sx
+      y_glob = random(dseed) * global_mesh % sy
+      z_glob = random(dseed) * global_mesh % sz
       u_ = x_glob * y_glob * z_glob / 10.0
       v_ = 0.0; w_ = 0.0
       call rotateRandomlyIn3D(u_, v_, w_)
@@ -68,9 +66,9 @@ contains
     implicit none
     integer :: i, j, k
     integer :: i_glob, j_glob, k_glob
-    ex(:,:,:) = 0; ey(:,:,:) = 0; ez(:,:,:) = 0
-    bx(:,:,:) = 0; by(:,:,:) = 0; bz(:,:,:) = 0
-    jx(:,:,:) = 0; jy(:,:,:) = 0; jz(:,:,:) = 0
+    ex(:, :, :) = 0; ey(:, :, :) = 0; ez(:, :, :) = 0
+    bx(:, :, :) = 0; by(:, :, :) = 0; bz(:, :, :) = 0
+    jx(:, :, :) = 0; jy(:, :, :) = 0; jz(:, :, :) = 0
     ! ... dummy loop ...
     ! do i = 0, this_meshblock%ptr%sx - 1
     !   i_glob = i + this_meshblock%ptr%x0
@@ -111,11 +109,11 @@ contains
     ! end do
   end subroutine userDriveParticles
 
-  subroutine userExternalFields(xp, yp, zp,&
-                              & ex_ext, ey_ext, ez_ext,&
-                              & bx_ext, by_ext, bz_ext)
+  subroutine userExternalFields(xp, yp, zp, &
+                                ex_ext, ey_ext, ez_ext, &
+                                bx_ext, by_ext, bz_ext)
     implicit none
-    real, intent(in)  :: xp, yp, zp
+    real, intent(in) :: xp, yp, zp
     real, intent(out) :: ex_ext, ey_ext, ez_ext
     real, intent(out) :: bx_ext, by_ext, bz_ext
     ! some functions of xp, yp, zp
@@ -123,15 +121,6 @@ contains
     bx_ext = 0.0; by_ext = 0.0; bz_ext = 0.0
   end subroutine userExternalFields
 
-  #ifdef GCA
-    logical function userEnforceGCA(xi, yi, zi, dx, dy, dz, u, v, w, weight)
-      implicit none
-      integer(kind=2), intent(in), optional   :: xi, yi, zi
-      real, intent(in), optional              :: dx, dy, dz, u, v, w
-      real, intent(in), optional              :: weight
-      userEnforceGCA = .false.
-    end function userEnforceGCA
-  #endif
   !............................................................!
 
   !--- boundaries ---------------------------------------------!
@@ -144,7 +133,7 @@ contains
     implicit none
     integer, optional, intent(in) :: step
     logical, optional, intent(in) :: updateE, updateB
-    logical                       :: updateE_, updateB_
+    logical :: updateE_, updateB_
 
     if (present(updateE)) then
       updateE_ = updateE

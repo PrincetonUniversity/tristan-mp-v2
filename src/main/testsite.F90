@@ -1,5 +1,3 @@
-#include "../defs.F90"
-
 module m_testsite
   use m_globalnamespace
   use m_outputnamespace
@@ -29,7 +27,7 @@ contains
 
   subroutine testcode()
     implicit none
-    
+
     ! YOUR TEST CODE GOES HERE ...
 
     call checkEverything()
