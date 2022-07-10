@@ -1,5 +1,3 @@
-#include "../defs.F90"
-
 program tristan
   use m_initialize
   use m_mainloop
@@ -9,11 +7,11 @@ program tristan
   !----- main code --------------------------
 
   call initializeAll()
-  #ifndef TESTMODE
-    call mainloop()
-  #else
-    call testcode()
-  #endif
+#ifndef TESTMODE
+  call mainloop()
+#else
+  call testcode()
+#endif
   call finalizeAll()
 
   !..... main code ..........................

@@ -13,7 +13,7 @@ u1 = CC * u0 + 2.0 * ex0 + (CC * v0 * dummy_) * bz0 - (CC * w0 * dummy_) * by0
 v1 = CC * v0 + 2.0 * ey0 + (CC * w0 * dummy_) * bx0 - (CC * u0 * dummy_) * bz0
 w1 = CC * w0 + 2.0 * ez0 + (CC * u0 * dummy_) * by0 - (CC * v0 * dummy_) * bx0
 
-dummy_ = CCINV * ( u1 * bx0 + v1 * by0 + w1 * bz0)
+dummy_ = CCINV * (u1 * bx0 + v1 * by0 + w1 * bz0)
 dummy2_ = CCINV * CCINV * (CC**2 + u1**2 + v1**2 + w1**2) - (bx0**2 + by0**2 + bz0**2)
 
 dummy_ = 1.0 / sqrt(0.5 * (dummy2_ + sqrt(dummy2_**2 + 4.0 * (bx0**2 + by0**2 + bz0**2 + dummy_**2))))

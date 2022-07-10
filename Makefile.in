@@ -1,4 +1,5 @@
-# Template for `TRISTAN-MP v2` Makefile
+# Template for `Tristan v2` Makefile
+SHELL=/bin/sh
 
 # Files for conditional compilation
 USER_FILE = @USER_FILE@
@@ -7,101 +8,48 @@ USER_FILE = @USER_FILE@
 FC := @COMPILER_COMMAND@
 FFLAGS := @COMPILER_FLAGS@
 PFLAGS := @PREPROCESSOR_FLAGS@
+WARNFLAGS := @WARNING_FLAGS@
+
+PFLAGS += @DEFS@
+# FFLAGS += $(WARNFLAGS)
 
 # Preliminary definitions
-EXE_DIR := exec/
+EXE_FILE := @EXE_NAME@
 USR_DIR := @USER_DIR@
 SRC_DIR := src/
-PREC_SRC_DIR := src_/
-EXE_FILE := @EXE_NAME@
+BIN_DIR := bin/
+BUILD_DIR := build/
 
-EXECUTABLE := $(EXE_DIR)$(EXE_FILE)
+EXECUTABLE := $(BIN_DIR)$(EXE_FILE)
 
-SRC_FILES :=$(SRC_DIR)global_namespace.F90 \
-						$(SRC_DIR)output_namespace.F90 \
-						$(SRC_DIR)tools/auxiliary.F90 \
-						$(SRC_DIR)tools/error_handling.F90 \
-						$(SRC_DIR)io/read_input.F90 \
-						$(SRC_DIR)domain/domain.F90 \
-						$(SRC_DIR)fields/fields.F90 \
-						$(SRC_DIR)particles/particles.F90 \
-						$(SRC_DIR)tools/helpers.F90 \
-						$(SRC_DIR)fields/field_logistics.F90 \
-						$(SRC_DIR)particles/particle_binning.F90 \
-						$(SRC_DIR)particles/binary_coupling.F90 \
-						$(SRC_DIR)particles/particle_logistics.F90 \
-						$(SRC_DIR)particles/particle_downsampling.F90 \
-						$(SRC_DIR)particles/thermal_plasma.F90 \
-						$(SRC_DIR)particles/powerlaw_plasma.F90 \
-						$(SRC_DIR)communications/exchange_particles.F90 \
-						$(SRC_DIR)communications/exchange_fields.F90 \
-						$(SRC_DIR)communications/exchange_currents.F90 \
-						$(SRC_DIR)communications/exchange_array.F90 \
-						$(SRC_DIR)io/output_logistics.F90 \
-						$(SRC_DIR)io/write_usroutput.F90 \
-						$(SRC_DIR)restart/restart.F90 \
-						$(SRC_DIR)domain/static_lb.F90 \
-						$(SRC_DIR)domain/adaptive_lb.F90 \
-						$(SRC_DIR)domain/loadbalancing.F90 \
-						$(addprefix $(USR_DIR), $(USER_FILE).F90) \
-						$(SRC_DIR)io/write_slice.F90 \
-						$(SRC_DIR)io/write_params.F90 \
-						$(SRC_DIR)io/write_tot_flds.F90 \
-						$(SRC_DIR)io/write_tot_prtl.F90 \
-						$(SRC_DIR)io/write_spectra.F90 \
-						$(SRC_DIR)io/write_diagnostics.F90 \
-						$(SRC_DIR)io/write_tot.F90 \
-						$(SRC_DIR)io/write_history.F90 \
-						$(SRC_DIR)algorithms/particle_mover.F90 \
-						$(SRC_DIR)algorithms/field_solver.F90 \
-						$(SRC_DIR)algorithms/current_deposit.F90 \
-						$(SRC_DIR)algorithms/filtering.F90 \
-						$(SRC_DIR)main/initialize.F90 \
-						$(SRC_DIR)main/finalize.F90 \
-						$(SRC_DIR)main/tristanmainloop.F90 \
-						$(SRC_DIR)main/testsite.F90 \
-						$(SRC_DIR)main/tristan.F90
+SRC_FILES := $(shell find $(SRC_DIR) -name '*.F90') $(addprefix $(USR_DIR), $(USER_FILE).F90)
+INC_FILES := $(shell find $(SRC_DIR) -name '*.F08') 
+OBJ_FILES := $(patsubst %.F90,%.o,$(SRC_FILES))
+OBJ_FILES := $(addprefix $(BUILD_DIR),$(OBJ_FILES))
 
-INCL_FILES := $(SRC_DIR)tools/interp_efield.F \
-							$(SRC_DIR)tools/interp_bfield.F \
-							$(SRC_DIR)algorithms/boris/boris_push.F \
-							$(SRC_DIR)algorithms/vay/vay_push.F \
-							$(SRC_DIR)algorithms/position_update.F \
-							$(SRC_DIR)algorithms/zigzag_deposit.F \
-							$(SRC_DIR)algorithms/gca/gca_routine.F \
-							$(SRC_DIR)algorithms/gca/gca_ecrossb_drift.F
+.PHONY: all depend clean
 
-PREC_SRC_FILES := $(addprefix $(PREC_SRC_DIR), $(notdir $(SRC_FILES:.F90=_.F90)))
+all : depend $(EXECUTABLE)
 
-OBJ_DIR := obj/
-OBJ_FILES := $(addprefix $(OBJ_DIR), $(notdir $(PREC_SRC_FILES:.F90=.o)))
+include Makefile.depend
 
-###########################
-.PHONY : all clean dirs
+depend Makefile.depend:
+	@-./makedepf90 $(SRC_FILES) -B $(BUILD_DIR) > Makefile.depend
 
-all: dirs precomp $(EXECUTABLE)
+$(EXECUTABLE): $(OBJ_FILES)
+	@echo Linking $(EXECUTABLE)
+	@mkdir -p $(@D)
+	@$(FC) $(FFLAGS) $(PFLAGS) $(OBJ_FILES) -o $(EXECUTABLE)
+	@echo [OK]: executable created at $(EXECUTABLE)
+	
 
-EXCLUDE_FILES := "$(OBJ_DIR)*" "$(PREC_SRC_DIR)*" "$(EXE_DIR)*" ".git/*" "*/__pycache__/*" "test_*/*"
+$(BUILD_DIR)%.o: %.F90
+	@mkdir -p $(@D)
+	@$(FC) $(FFLAGS) $(PFLAGS) -cpp $(addprefix -I, $(dir $(INC_FILES))) @MODULE@ $(BUILD_DIR) -c $< -o $@
+	@echo [OK]: compiled $<
 
-dirs:
-	mkdir -p $(OBJ_DIR) $(EXE_DIR) $(PREC_SRC_DIR)
-
-precomp:
-	$(foreach fl, $(SRC_FILES), cpp -nostdinc -C -P -w $(PFLAGS) $(fl) > $(addprefix $(PREC_SRC_DIR), $(notdir $(fl:.F90=_.F90)));)
-	$(foreach fl, $(INCL_FILES), cpp -nostdinc -C -P -w $(PFLAGS) $(fl) > $(addprefix $(PREC_SRC_DIR), $(notdir $(fl)));)
-
-$(EXECUTABLE):$(OBJ_FILES)
-	$(FC) $(FFLAGS) $(PFLAGS) -o $@ $(OBJ_FILES)
-
-$(OBJ_FILES):$(PREC_SRC_FILES)
-
-$(OBJ_DIR)%.o:$(PREC_SRC_DIR)%.F90
-	$(FC) $(FFLAGS) $(PFLAGS) @MODULE@ $(OBJ_DIR) -c $< -o $@
-
-clean:
-	rm -f $(OBJS)
-	rm -f $(OBJ_DIR)*.mod
-	rm -rf $(OBJ_DIR)
-	rm -rf $(PREC_SRC_DIR)
-	find . -name "*.o" -delete
-	rm -f $(EXE_DIR)*
+clean :
+	@echo "Cleaning ..."
+	@rm -f $(EXECUTABLE) $(OBJ_FILES)
+	@rm -rf $(BIN_DIR) $(BUILD_DIR)
+	@rm -f Makefile.depend
