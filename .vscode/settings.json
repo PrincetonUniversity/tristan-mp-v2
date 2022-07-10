@@ -1,0 +1,16 @@
+// vscode extension to-be-installed:
+//   Modern Fortran: fortran-lang.linter-gfortran
+//   vscode-modern-fortran-formatter: yukiuuh.vscode-modern-fortran-formatter
+//   Python Indent: KevinRose.vsc-python-indent
+//   Python: ms-python.python
+// Also change the `fprettifyPath` below to match your working directory...
+//    ... notice that the global path is required (enables formatter).
+//    * I know this is inconvenient, but Microsoft seems to not care about that:
+//    * see: https://github.com/microsoft/vscode/issues/2809
+{
+  "fortran.formatting.formatter": "Disabled",
+  "modernFortranFormatter.fprettifyPath": "<PATH-TO>/venv/bin/fprettify",
+  "modernFortranFormatter.fprettifyArgs": "-i 2 -w 4 --whitespace-assignment true --enable-decl --whitespace-decl true --whitespace-relational true --whitespace-logical true --whitespace-plusminus true --whitespace-multdiv true --whitespace-print true --whitespace-type true --whitespace-intrinsics true --enable-replacements -l 1000",
+  "fortran.fortls.disabled": true,
+  "fortran.fortls.path": "",
+}
