@@ -1,5 +1,3 @@
-#include "../src/defs.F90"
-
 module m_userfile
   use m_globalnamespace
   use m_aux
@@ -24,23 +22,23 @@ contains
     implicit none
   end subroutine userReadInput
 
-  function userSpatialDistribution(x_glob, y_glob, z_glob,&
-                                 & dummy1, dummy2, dummy3)
+  function userSpatialDistribution(x_glob, y_glob, z_glob, &
+                                   dummy1, dummy2, dummy3)
     real :: userSpatialDistribution
-    real, intent(in), optional  :: x_glob, y_glob, z_glob
-    real, intent(in), optional  :: dummy1, dummy2, dummy3
+    real, intent(in), optional :: x_glob, y_glob, z_glob
+    real, intent(in), optional :: dummy1, dummy2, dummy3
 
     return
   end function
 
-  function userSLBload(x_glob, y_glob, z_glob,&
-                     & dummy1, dummy2, dummy3)
+  function userSLBload(x_glob, y_glob, z_glob, &
+                       dummy1, dummy2, dummy3)
     real :: userSLBload
     ! global coordinates
-    real, intent(in), optional  :: x_glob, y_glob, z_glob
+    real, intent(in), optional :: x_glob, y_glob, z_glob
     ! global box dimensions
-    real, intent(in), optional  :: dummy1, dummy2, dummy3
-    real                        :: radius
+    real, intent(in), optional :: dummy1, dummy2, dummy3
+    real :: radius
     radius = sqrt((dummy1 * 0.5 - x_glob)**2 + (dummy2 * 0.5 - y_glob)**2) + 1.0
     userSLBload = 10.0 / radius
     return
@@ -49,13 +47,13 @@ contains
   subroutine userInitParticles()
     implicit none
     type(region) :: fill_region
-    procedure (spatialDistribution), pointer :: spat_distr_ptr => null()
+    procedure(spatialDistribution), pointer :: spat_distr_ptr => null()
     spat_distr_ptr => userSpatialDistribution
 
-    fill_region%x_min = REAL(0)
-    fill_region%y_min = REAL(0)
-    fill_region%x_max = REAL(this_meshblock%ptr%sx)
-    fill_region%y_max = REAL(this_meshblock%ptr%sy)
+    fill_region % x_min = REAL(0)
+    fill_region % y_min = REAL(0)
+    fill_region % x_max = REAL(this_meshblock % ptr % sx)
+    fill_region % y_max = REAL(this_meshblock % ptr % sy)
 
     ! now filling region with plasma
     !     upstream:
@@ -66,9 +64,9 @@ contains
     implicit none
     integer :: i, j, k
     integer :: i_glob, j_glob, k_glob
-    ex(:,:,:) = 0; ey(:,:,:) = 0; ez(:,:,:) = 0
-    bx(:,:,:) = 0; by(:,:,:) = 0; bz(:,:,:) = 0
-    jx(:,:,:) = 0; jy(:,:,:) = 0; jz(:,:,:) = 0
+    ex(:, :, :) = 0; ey(:, :, :) = 0; ez(:, :, :) = 0
+    bx(:, :, :) = 0; by(:, :, :) = 0; bz(:, :, :) = 0
+    jx(:, :, :) = 0; jy(:, :, :) = 0; jz(:, :, :) = 0
     ! ... dummy loop ...
     ! do i = 0, this_meshblock%ptr%sx - 1
     !   i_glob = i + this_meshblock%ptr%x0
@@ -120,7 +118,7 @@ contains
     implicit none
     integer, optional, intent(in) :: step
     logical, optional, intent(in) :: updateE, updateB
-    logical                       :: updateE_, updateB_
+    logical :: updateE_, updateB_
 
     if (present(updateE)) then
       updateE_ = updateE

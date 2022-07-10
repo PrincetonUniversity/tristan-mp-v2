@@ -1,5 +1,3 @@
-#include "../src/defs.F90"
-
 module m_userfile
   use m_globalnamespace
   use m_aux
@@ -12,9 +10,9 @@ module m_userfile
   implicit none
 
   !--- PRIVATE variables -----------------------------------------!
-  real, private     :: background_T, sigma_z, background_w0
-  real, private     :: background_bz, delta_b_rms
-  integer, private  :: N_modes
+  real, private :: background_T, sigma_z, background_w0
+  real, private :: background_bz, delta_b_rms
+  integer, private :: N_modes
   !...............................................................!
 
   !--- PRIVATE functions -----------------------------------------!
@@ -29,11 +27,11 @@ contains
     call getInput('problem', 'sigma_z', sigma_z)
     call getInput('problem', 'N_modes', N_modes)
     if (background_T .lt. 0.7) then
-      gamma_mean = 1.0 + 1.5 * background_T + 1.875 * background_T**2 -&
-                 & 1.875 * background_T**3 + 1.05469 * background_T**4 + 1.40625 * background_T**5
+      gamma_mean = 1.0 + 1.5 * background_T + 1.875 * background_T**2 - &
+                   1.875 * background_T**3 + 1.05469 * background_T**4 + 1.40625 * background_T**5
     else
-      gamma_mean = 0.5 / background_T + 3.0 * background_T +&
-                 & (0.0625 * (-1.23186 - 2.0 * log(background_T))) / background_T**5
+      gamma_mean = 0.5 / background_T + 3.0 * background_T + &
+                   (0.0625 * (-1.23186 - 2.0 * log(background_T))) / background_T**5
     end if
     background_w0 = background_T + gamma_mean
 
@@ -44,51 +42,51 @@ contains
     background_bz = sqrt(background_w0 * sigma_z / sigma)
   end subroutine userReadInput
 
-  function userSpatialDistribution(x_glob, y_glob, z_glob,&
-                                 & dummy1, dummy2, dummy3)
+  function userSpatialDistribution(x_glob, y_glob, z_glob, &
+                                   dummy1, dummy2, dummy3)
     real :: userSpatialDistribution
-    real, intent(in), optional  :: x_glob, y_glob, z_glob
-    real, intent(in), optional  :: dummy1, dummy2, dummy3
+    real, intent(in), optional :: x_glob, y_glob, z_glob
+    real, intent(in), optional :: dummy1, dummy2, dummy3
 
     return
   end function
 
-  function userSLBload(x_glob, y_glob, z_glob,&
-                     & dummy1, dummy2, dummy3)
+  function userSLBload(x_glob, y_glob, z_glob, &
+                       dummy1, dummy2, dummy3)
     real :: userSLBload
     ! global coordinates
-    real, intent(in), optional  :: x_glob, y_glob, z_glob
+    real, intent(in), optional :: x_glob, y_glob, z_glob
     ! global box dimensions
-    real, intent(in), optional  :: dummy1, dummy2, dummy3
+    real, intent(in), optional :: dummy1, dummy2, dummy3
     return
   end function
 
   subroutine userInitParticles()
     implicit none
-    real                :: background_n
-    type(region)        :: back_region
-    procedure (spatialDistribution), pointer :: spat_distr_ptr => null()
+    real :: background_n
+    type(region) :: back_region
+    procedure(spatialDistribution), pointer :: spat_distr_ptr => null()
     spat_distr_ptr => userSpatialDistribution
 
     background_n = REAL(ppc0) * 0.5
-    back_region%x_min = 0.0
-    back_region%y_min = 0.0
-    back_region%x_max = REAL(global_mesh%sx)
-    back_region%y_max = REAL(global_mesh%sy)
+    back_region % x_min = 0.0
+    back_region % y_min = 0.0
+    back_region % x_max = REAL(global_mesh % sx)
+    back_region % y_max = REAL(global_mesh % sy)
     call fillRegionWithThermalPlasma(back_region, (/1, 2/), 2, background_n, background_T)
   end subroutine userInitParticles
 
   real function BxMode(x, y, z, phases_1, phases_2)
     implicit none
-    real, intent(in)                :: x, y, z
-    real, allocatable, intent(in)   :: phases_1(:,:), phases_2(:,:)
-    integer                         :: n, m
-    real                            :: dummy, beta_mn, kn, km
+    real, intent(in) :: x, y, z
+    real, allocatable, intent(in) :: phases_1(:, :), phases_2(:, :)
+    integer :: n, m
+    real :: dummy, beta_mn, kn, km
     dummy = 0.0
     do n = 1, N_modes
-      kn = 2.0 * M_PI * n / REAL(global_mesh%sy)
+      kn = 2.0 * M_PI * n / REAL(global_mesh % sy)
       do m = 1, N_modes
-        km = 2.0 * M_PI * m / REAL(global_mesh%sx)
+        km = 2.0 * M_PI * m / REAL(global_mesh % sx)
         beta_mn = 2.0 * delta_b_rms / (N_modes * sqrt(REAL(n**2 + m**2)))
         dummy = dummy + beta_mn * n * sin(km * x + phases_1(m, n)) * cos(kn * y + phases_2(m, n))
       end do
@@ -99,15 +97,15 @@ contains
 
   real function ByMode(x, y, z, phases_1, phases_2)
     implicit none
-    real, intent(in)                :: x, y, z
-    real, allocatable, intent(in)   :: phases_1(:,:), phases_2(:,:)
-    integer                         :: n, m
-    real                            :: dummy, beta_mn, kn, km
+    real, intent(in) :: x, y, z
+    real, allocatable, intent(in) :: phases_1(:, :), phases_2(:, :)
+    integer :: n, m
+    real :: dummy, beta_mn, kn, km
     dummy = 0.0
     do n = 1, N_modes
-      kn = 2.0 * M_PI * n / REAL(global_mesh%sy)
+      kn = 2.0 * M_PI * n / REAL(global_mesh % sy)
       do m = 1, N_modes
-        km = 2.0 * M_PI * m / REAL(global_mesh%sx)
+        km = 2.0 * M_PI * m / REAL(global_mesh % sx)
         beta_mn = 2.0 * delta_b_rms / (N_modes * sqrt(REAL(n**2 + m**2)))
         dummy = dummy - beta_mn * n * cos(km * x + phases_1(m, n)) * sin(kn * y + phases_2(m, n))
       end do
@@ -121,10 +119,10 @@ contains
     integer :: i, j, k
     integer :: i_glob, j_glob, k_glob
     integer :: root_rnk = 0, n, m, ierr
-    real    :: x_, y_, z_
-    real, allocatable :: rand_phases_1(:,:), rand_phases_2(:,:)
+    real :: x_, y_, z_
+    real, allocatable :: rand_phases_1(:, :), rand_phases_2(:, :)
 
-    allocate(rand_phases_1(N_modes, N_modes), rand_phases_2(N_modes, N_modes))
+    allocate (rand_phases_1(N_modes, N_modes), rand_phases_2(N_modes, N_modes))
     if (mpi_rank .eq. root_rnk) then
       do n = 1, N_modes
         do m = 1, N_modes
@@ -133,27 +131,27 @@ contains
         end do
       end do
     end if
-    call MPI_Bcast(rand_phases_1, N_modes**2, MPI_REAL, root_rnk, MPI_COMM_WORLD, i)
-    call MPI_Bcast(rand_phases_2, N_modes**2, MPI_REAL, root_rnk, MPI_COMM_WORLD, i)
+    call MPI_Bcast(rand_phases_1, N_modes**2, default_mpi_real, root_rnk, MPI_COMM_WORLD, i)
+    call MPI_Bcast(rand_phases_2, N_modes**2, default_mpi_real, root_rnk, MPI_COMM_WORLD, i)
 
-    ex(:,:,:) = 0; ey(:,:,:) = 0; ez(:,:,:) = 0
-    bx(:,:,:) = 0; by(:,:,:) = 0; bz(:,:,:) = 0
-    jx(:,:,:) = 0; jy(:,:,:) = 0; jz(:,:,:) = 0
+    ex(:, :, :) = 0; ey(:, :, :) = 0; ez(:, :, :) = 0
+    bx(:, :, :) = 0; by(:, :, :) = 0; bz(:, :, :) = 0
+    jx(:, :, :) = 0; jy(:, :, :) = 0; jz(:, :, :) = 0
 
-    bz(:,:,:) = background_bz
+    bz(:, :, :) = background_bz
 
     ! ... dummy loop ...
-    do i = 0, this_meshblock%ptr%sx - 1
-      i_glob = i + this_meshblock%ptr%x0
-      do j = 0, this_meshblock%ptr%sy - 1
-        j_glob = j + this_meshblock%ptr%y0
-        do k = 0, this_meshblock%ptr%sz - 1
-          k_glob = k + this_meshblock%ptr%z0
+    do i = 0, this_meshblock % ptr % sx - 1
+      i_glob = i + this_meshblock % ptr % x0
+      do j = 0, this_meshblock % ptr % sy - 1
+        j_glob = j + this_meshblock % ptr % y0
+        do k = 0, this_meshblock % ptr % sz - 1
+          k_glob = k + this_meshblock % ptr % z0
 
-          x_ = REAL(i_glob);  y_ = REAL(j_glob) + 0.5;  z_ = REAL(k_glob) + 0.5
+          x_ = REAL(i_glob); y_ = REAL(j_glob) + 0.5; z_ = REAL(k_glob) + 0.5
           bx(i, j, k) = BxMode(x_, y_, z_, rand_phases_1, rand_phases_2)
 
-          x_ = REAL(i_glob) + 0.5;  y_ = REAL(j_glob);  z_ = REAL(k_glob) + 0.5
+          x_ = REAL(i_glob) + 0.5; y_ = REAL(j_glob); z_ = REAL(k_glob) + 0.5
           by(i, j, k) = ByMode(x_, y_, z_, rand_phases_1, rand_phases_2)
         end do
       end do
@@ -187,11 +185,11 @@ contains
     ! end do
   end subroutine userDriveParticles
 
-  subroutine userExternalFields(xp, yp, zp,&
-                              & ex_ext, ey_ext, ez_ext,&
-                              & bx_ext, by_ext, bz_ext)
+  subroutine userExternalFields(xp, yp, zp, &
+                                ex_ext, ey_ext, ez_ext, &
+                                bx_ext, by_ext, bz_ext)
     implicit none
-    real, intent(in)  :: xp, yp, zp
+    real, intent(in) :: xp, yp, zp
     real, intent(out) :: ex_ext, ey_ext, ez_ext
     real, intent(out) :: bx_ext, by_ext, bz_ext
     ! some functions of xp, yp, zp
@@ -199,15 +197,6 @@ contains
     bx_ext = 0.0; by_ext = 0.0; bz_ext = 0.0
   end subroutine userExternalFields
 
-  #ifdef GCA
-    logical function userEnforceGCA(xi, yi, zi, dx, dy, dz, u, v, w, weight)
-      implicit none
-      integer(kind=2), intent(in), optional   :: xi, yi, zi
-      real, intent(in), optional              :: dx, dy, dz, u, v, w
-      real, intent(in), optional              :: weight
-      userEnforceGCA = .false.
-    end function userEnforceGCA
-  #endif
   !............................................................!
 
   !--- boundaries ---------------------------------------------!
@@ -220,7 +209,7 @@ contains
     implicit none
     integer, optional, intent(in) :: step
     logical, optional, intent(in) :: updateE, updateB
-    logical                       :: updateE_, updateB_
+    logical :: updateE_, updateB_
 
     if (present(updateE)) then
       updateE_ = updateE

@@ -10,5 +10,11 @@
 !fulltest.py
 !Makefile.in
 !README.md
-!LICENSE
+!dev-requirements.txt
+!.vscode
+!docker
+!extern/
 !CITATION
+!LICENSE
+.vscode/*.log
+__pycache__

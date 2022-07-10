@@ -19,6 +19,7 @@ unit_directory = 'unit/'
 unit_choices = glob.glob(unit_directory + '*.F90')
 unit_choices = [choice[len(unit_directory):-4] for choice in unit_choices]
 
+rad_choices = ['no', 'sync', 'ic', 'sync+ic']
 clusters = ['perseus', 'frontera', 'stellar']
 
 # system
@@ -27,15 +28,15 @@ parser.add_argument('--cluster',
                     choices=clusters,
                     help='choose cluster-specific configurations.')
 
-cpu_group = parser.add_mutually_exclusive_group(required=True)
+cpu_group = parser.add_mutually_exclusive_group(required=False)
 cpu_group.add_argument('-intel',
                        action='store_true',
                        default=False,
-                       help='Intel CPU')
+                       help='enable Intel cpu optimizations')
 cpu_group.add_argument('-amd',
                        action='store_true',
                        default=False,
-                       help='AMD CPU')
+                       help='enable AMD cpu optimizations')
 
 parser.add_argument('-hdf5',
                     action='store_true',
@@ -69,7 +70,7 @@ parser.add_argument('-ifport',
                     default=False,
                     help='enable IFPORT library (`mkdir` etc)')
 
-mpi_group = parser.add_mutually_exclusive_group(required=True)
+mpi_group = parser.add_mutually_exclusive_group()
 mpi_group.add_argument('-mpi',
                        action='store_true',
                        default=False,
@@ -96,6 +97,11 @@ user_group.add_argument('--unit',
                         help='select unit file')
 
 # algorithms
+parser.add_argument('-double',
+                    action='store_true',
+                    default=False,
+                    help='use double precision')
+
 parser.add_argument('--nghosts',
                     action='store',
                     default=3,
@@ -170,6 +176,37 @@ parser.add_argument('-slb',
                     default=False,
                     help='enable static load balancing')
 
+# extra physics
+parser.add_argument('--radiation',
+                    default='OFF',
+                    choices=rad_choices,
+                    help='choose radiation mechanism')
+
+parser.add_argument('-emit',
+                    action='store_true',
+                    default=False,
+                    help='enable photon emission')
+
+parser.add_argument('-qed',
+                    action='store_true',
+                    default=False,
+                    help='enable QED step')
+
+parser.add_argument('-bwpp',
+                    action='store_true',
+                    default=False,
+                    help='enable Breit-Wheeler pair production')
+
+parser.add_argument('-compton',
+                    action='store_true',
+                    default=False,
+                    help='enable Compton scattering')
+
+parser.add_argument('-annihilation',
+                    action='store_true',
+                    default=False,
+                    help='enable pair annihilation')
+
 args = vars(parser.parse_args())
 
 # Step 2. Set definitions and Makefile options based on above arguments
@@ -186,12 +223,15 @@ else:
 makefile_options['COMPILER_COMMAND'] = ''
 makefile_options['COMPILER_FLAGS'] = ''
 makefile_options['PREPROCESSOR_FLAGS'] = ''
+makefile_options['WARNING_FLAGS'] = ''
+makefile_options['DEFS'] = '-DSTR_MAX=280 -DTINYXYZ=1e-6 -DTINYREAL=1e-3 -DTINYFLD=1e-8 -DTINYWEI=1e-6 -DM_PI=3.141592653589793 '
 
 # specific cluster:
 specific_cluster = False
 if (args['cluster'] is not None):
     specific_cluster = True
     clustername = args['cluster'].capitalize()
+    args['intel'] = True
     args['ifport'] = True
     if args['cluster'] == 'perseus':
         args['mpi'] = True
@@ -209,8 +249,7 @@ if args['hdf5']:
     makefile_options['COMPILER_COMMAND'] += 'h5pfc '
     makefile_options['PREPROCESSOR_FLAGS'] += '-DHDF5 '
 else:
-    makefile_options['COMPILER_COMMAND'] += 'mpif90 '
-    # if args['intel'] else 'mpiifort '
+    makefile_options['COMPILER_COMMAND'] += 'mpif90 ' if args['intel'] else 'mpiifort '
 if args['ifport']:
     makefile_options['PREPROCESSOR_FLAGS'] += '-DIFPORT '
 if args['lowmem']:
@@ -223,40 +262,52 @@ if args['mpinonblock']:
 # mpi version
 if args['mpi']:
     makefile_options['PREPROCESSOR_FLAGS'] += '-DMPI '
-elif args['mpi08']:
+else:
     makefile_options['PREPROCESSOR_FLAGS'] += '-DMPI08 '
 
 # debug
 if args['debug'] != 'OFF':
-    # non-intel compilers are not supported
+    makefile_options['WARNING_FLAGS'] += '-Wall -Wextra -Wconversion -pedantic -Wno-compare-reals -Wno-unused-dummy-argument '
     if int(args['debug']) >= 0:
         makefile_options['PREPROCESSOR_FLAGS'] += '-DDEBUG '
     if int(args['debug']) >= 1:
-        makefile_options['COMPILER_FLAGS'] += '-traceback -fpe0 '
-    if int(args['debug']) >= 2:
+        if args['intel'] or args['amd']:
+            makefile_options['COMPILER_FLAGS'] += '-traceback -fpe0 '
+        else:
+            makefile_options['COMPILER_FLAGS'] += '-fbacktrace -ffpe-trap=invalid,zero,overflow,underflow,denormal '
+    if int(args['debug']) >= 2 and (args['intel'] or args['amd']):
         makefile_options['COMPILER_FLAGS'] += '-check all -check noarg_temp_created '
 else:
-    makefile_options['COMPILER_FLAGS'] += '-Ofast -O3 -DSoA -ipo '
+    makefile_options['COMPILER_FLAGS'] += '-Ofast '
+
+if args['double']:
+    if args['intel'] or args['amd']:
+        makefile_options['COMPILER_FLAGS'] += '-r8 '
+    else:
+        makefile_options['COMPILER_FLAGS'] += '-fdefault-real-8 '
+    makefile_options['PREPROCESSOR_FLAGS'] += '-DDPREC '
+    makefile_options['DEFS'] += '-Ddefault_h5_real=H5T_NATIVE_DOUBLE '
+else:
+    makefile_options['DEFS'] += '-Ddefault_h5_real=H5T_NATIVE_REAL '
 
 if args['test']:
     makefile_options['PREPROCESSOR_FLAGS'] += '-DTESTMODE '
 
-makefile_options['MODULE'] = '-module '
-
-# compiler (+ vectorization etc)
-if args['avx2'] or args['avx512']:
-    makefile_options['COMPILER_FLAGS'] += '-qopenmp-simd -qopt-report=5 -qopt-streaming-stores auto '
-
-if args['avx2']:
-    if args['intel']:
+# compiler (+ optimization, vectorization etc)
+if args['intel']:
+    makefile_options['MODULE'] = '-module '
+    makefile_options['COMPILER_FLAGS'] += '-O3 -DSoA -ipo -qopenmp-simd -qopt-report=5 -qopt-streaming-stores auto '
+    makefile_options['COMPILER_FLAGS'] += '-diag-disable 10397 -diag-disable 10346 '
+    if args['avx2']:
         makefile_options['COMPILER_FLAGS'] += '-xCORE-AVX2 '
-    elif args['amd']:
-        makefile_options['COMPILER_FLAGS'] += '-march-core=avx2 '
-elif args['avx512']:
-    if args['intel']:
+    elif args['avx512']:
         makefile_options['COMPILER_FLAGS'] += '-xCORE-AVX512 -qopt-zmm-usage:high '
-    elif args['amd']:
-        raise NotImplementedError('AVX512 not supported on AMD CPUs')
+elif args['amd']:
+    makefile_options['MODULE'] = '-J '
+    makefile_options['COMPILER_FLAGS'] += '-O3 -DSoA -fwhole-program -mavx2 -fopt-info-vec -fopt-info-vec-missed -ftree-vectorizer-verbose=5 '
+else:
+    makefile_options['MODULE'] = '-J '
+    makefile_options['COMPILER_FLAGS'] += '-O3 -DSoA -ffree-line-length-512 '
 
 if args['1d']:
     makefile_options['EXE_NAME'] = 'tristan-mp1d'
@@ -293,8 +344,31 @@ if args['usroutput']:
 if args['extfields']:
     makefile_options['PREPROCESSOR_FLAGS'] += '-DEXTERNALFIELDS '
 
+if args['radiation'] != 'OFF':
+    makefile_options['PREPROCESSOR_FLAGS'] += '-DRADIATION '
+
+if 'sync' in args['radiation']:
+    makefile_options['PREPROCESSOR_FLAGS'] += '-DSYNCHROTRON '
+if 'ic' in args['radiation']:
+    makefile_options['PREPROCESSOR_FLAGS'] += '-DINVERSECOMPTON '
+
+if args['emit'] and (args['radiation'] != 'OFF'):
+    makefile_options['PREPROCESSOR_FLAGS'] += '-DEMIT '
+
+if args['qed']:
+    makefile_options['PREPROCESSOR_FLAGS'] += '-DQED '
+
+if args['bwpp']:
+    makefile_options['PREPROCESSOR_FLAGS'] += '-DBWPAIRPRODUCTION '
+
+if args['compton']:
+    makefile_options['PREPROCESSOR_FLAGS'] += '-DCOMPTONSCATTERING '
+
+if args['annihilation']:
+    makefile_options['PREPROCESSOR_FLAGS'] += '-DPAIRANNIHILATION '
+
 makefile_options['PREPROCESSOR_FLAGS'] += '-DNGHOST=' + \
-    str(args['nghosts']) + ' '
+    str(args['nghosts']) + '_2 '
 
 # Step 3. Create new files, finish up
 with open(makefile_input, 'r') as current_file:
@@ -323,16 +397,24 @@ print('  Particle pusher:         ' + ('Vay' if args['vay'] else 'Boris') + (
     '/GCA ({} iterations)'.format(args['gca']) if args['gca'] != 'OFF' else ''))
 print('  Particle payloads:       ' + ('ON' if args['payload'] else 'OFF'))
 
-print('EXTRA .........................................................................')
+print('PHYSICS ......................................................................')
 print('  External fields:         ' + ('ON' if args['extfields'] else 'OFF'))
 print('  Absorbing boundaries:    ' + ('ON' if args['absorb'] else 'OFF'))
+print('  Cooling:                 ' + args['radiation'])
+print('  Photon emission:         ' + ('ON' if args['emit'] else 'OFF'))
+print('  QED step:                ' + ('ON' if args['qed'] else 'OFF'))
+print('  BW pair production:      ' + ('ON' if args['bwpp'] else 'OFF'))
+print('  Compton scattering:      ' + ('ON' if args['compton'] else 'OFF'))
+print('  Pair annihilation:       ' +
+      ('ON' if args['annihilation'] else 'OFF'))
 
-print('TECHNICAL .....................................................................')
+print('TECHNICAL ....................................................................')
 
-print('  Compiler:                ' + ('intel') +
+print('  Compiler:                ' + ('intel' if args['intel'] else 'gcc') +
                                       (' [avx2]' if args['avx2'] else
                                        (' [avx512]' if args['avx512'] else '')
                                        ))
+print('  Precision:               ' + ('double' if args['double'] else 'single'))
 print('  Debug mode:              ' +
       ('level ' if args['debug'] != 'OFF' else '') + args['debug'])
 print('  Low memory mode:         ' + ('ON' if args['lowmem'] else 'OFF'))
@@ -346,4 +428,4 @@ print('  `IFPORT` mkdir:          ' + ('ON' if args['ifport'] else 'OFF'))
 print('==============================================================================')
 
 print('  Compilation command:     ' + makefile_options['COMPILER_COMMAND']
-      + makefile_options['PREPROCESSOR_FLAGS'] + makefile_options['COMPILER_FLAGS'])
+      + makefile_options['PREPROCESSOR_FLAGS'] + makefile_options['COMPILER_FLAGS'] + makefile_options['DEFS'] + makefile_options['WARNING_FLAGS'])
