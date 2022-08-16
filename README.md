@@ -1,10 +1,6 @@
 # Tristan v2.5
 
-For detailed tutorials and code description please visit our [wiki](https://ntoles.github.io/tristan-wiki/). If you are a new user testing the code on a new computer cluster, please consider contributing to [this chapter](https://ntoles.github.io/tristan-wiki/tristanv2-configure.html#cluster-specific-customization) about cluster-specific configuration to make the life easier for future generations.
-
-## Public Release
-
-Radiation physics (including synchrotron + inverse Compton, with photon emission) is now available in the public release. See below for the latest changes.
+For detailed tutorials and code description please visit our [wiki](https://princetonuniversity.github.io/tristan-v2/). If you are a new user testing the code on a new computer cluster, please consider contributing to [this chapter](https://princetonuniversity.github.io/tristan-v2/tristanv2-configure.html#cluster-specific-customization) about cluster-specific configuration to make the life easier for future generations.
 
 ## Getting Started
 
@@ -14,7 +10,7 @@ Radiation physics (including synchrotron + inverse Compton, with photon emission
 * GCC or Intel Fortran compiler
 * (optional) Parallel HDF5 (compiled with either OpenMPI or Intel-MPI)
 
-On clusters typically all you need to do is to load the specific modules see [here](https://ntoles.github.io/tristan-wiki/tristanv2-configure.html#cluster-specific-customization). 
+On clusters typically all you need to do is to load the specific modules see [here](https://princetonuniversity.github.io/tristan-v2/tristanv2-configure.html#cluster-specific-customization). 
 
 If you are, however, running on a local machine make sure to install the following prerequisites (assuming non-Intel compiler and `apt` package manager):
 
@@ -122,10 +118,13 @@ or in the VSCode environment (see the extension list in the `.vscode/settings.js
 __@TODO__
 
 ## Latest Releases
-
-* `v2.5` __Jun 2022__
+* `v2.5.1` __Aug 2022__
+  * Minor configure bug when working with non-intel compilers
+  * Minor bug with `usroutput` flag
+* `v2.5` __Jul 2022__
   * Proper makefile/compilation command
   * Double precision option
+  * Auto converter for public version releases
 * `v2.4` __Jun 2022__
   * Stress-energy tensor output
   * `mpi` particle alignment issue

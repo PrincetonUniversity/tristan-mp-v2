@@ -31,10 +31,10 @@ OBJ_FILES := $(addprefix $(BUILD_DIR),$(OBJ_FILES))
 
 all : depend $(EXECUTABLE)
 
-include Makefile.depend
+-include Makefile.depend
 
 depend Makefile.depend:
-	@-./extern/makedepf90 $(SRC_FILES) -B $(BUILD_DIR) > Makefile.depend
+	@-./extern/makedepf90 $(SRC_FILES) -DUSROUTPUT -B $(BUILD_DIR) > Makefile.depend
 
 $(EXECUTABLE): $(OBJ_FILES)
 	@echo Linking $(EXECUTABLE)

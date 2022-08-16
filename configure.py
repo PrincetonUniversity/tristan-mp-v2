@@ -249,7 +249,7 @@ if args['hdf5']:
     makefile_options['COMPILER_COMMAND'] += 'h5pfc '
     makefile_options['PREPROCESSOR_FLAGS'] += '-DHDF5 '
 else:
-    makefile_options['COMPILER_COMMAND'] += 'mpif90 ' if args['intel'] else 'mpiifort '
+    makefile_options['COMPILER_COMMAND'] += 'mpif90 ' if not args['intel'] else 'mpiifort '
 if args['ifport']:
     makefile_options['PREPROCESSOR_FLAGS'] += '-DIFPORT '
 if args['lowmem']:

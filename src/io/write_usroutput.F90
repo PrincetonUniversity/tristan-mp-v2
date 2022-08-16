@@ -1,5 +1,4 @@
 module m_writeusroutput
-#ifdef USROUTPUT
   use m_globalnamespace
   use m_outputnamespace, only: usrout_enable, usrout_interval
   use m_aux
@@ -11,6 +10,7 @@ module m_writeusroutput
   use m_helpers
   implicit none
 
+#ifdef USROUTPUT
   character(len=STR_MAX), private :: usrout_filename
   logical, private :: first_time
 
