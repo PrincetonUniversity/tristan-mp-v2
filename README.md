@@ -1,5 +1,7 @@
 # Tristan v2.6
 
+[![DOI](https://zenodo.org/badge/234551890.svg)](https://zenodo.org/badge/latestdoi/234551890)
+
 For detailed tutorials and code description please visit our [wiki](https://princetonuniversity.github.io/tristan-v2/). If you are a new user testing the code on a new computer cluster, please consider contributing to [this chapter](https://princetonuniversity.github.io/tristan-v2/tristanv2-configure.html#cluster-specific-customization) about cluster-specific configuration to make the life easier for future generations.
 
 ## Getting Started
