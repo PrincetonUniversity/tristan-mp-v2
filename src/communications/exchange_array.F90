@@ -52,7 +52,7 @@ contains
 #ifdef oneD
     jmin = 0; jmax = 0
     kmin = 0; kmax = 0
-#elif twoD
+#elif defined(twoD)
     kmin = 0; kmax = 0
 #endif
 
@@ -104,7 +104,7 @@ contains
 #ifdef oneD
     jmin = 0; jmax = 0
     kmin = 0; kmax = 0
-#elif twoD
+#elif defined(twoD)
     kmin = 0; kmax = 0
 #endif
 
@@ -115,9 +115,9 @@ contains
     end if
 
     send_cnt = 1
-    do i = imin, imax
+    do k = kmin, kmax
       do j = jmin, jmax
-        do k = kmin, kmax
+        do i = imin, imax
           send_EB(send_cnt + 0) = lg_arr(i, j, k)
           send_cnt = send_cnt + 1
         end do
@@ -168,7 +168,7 @@ contains
 #ifdef oneD
     jmin = 0; jmax = 0
     kmin = 0; kmax = 0
-#elif twoD
+#elif defined(twoD)
     kmin = 0; kmax = 0
 #endif
 
@@ -180,9 +180,9 @@ contains
 
     ! copy `recv_fld` to ghost cells
     send_cnt = 1
-    do i = imin, imax
+    do k = kmin, kmax
       do j = jmin, jmax
-        do k = kmin, kmax
+        do i = imin, imax
           jx_buff(i, j, k) = jx_buff(i, j, k) + recv_fld(send_cnt)
           send_cnt = send_cnt + 1
         end do
@@ -208,13 +208,13 @@ contains
 
     jx_buff(:, :, :) = 0.0
 
-    do ind1 = -1, 1
+    do ind3 = -1, 1
       do ind2 = -1, 1
-        do ind3 = -1, 1
+        do ind1 = -1, 1
           if ((ind1 .eq. 0) .and. (ind2 .eq. 0) .and. (ind3 .eq. 0)) cycle
 #ifdef oneD
           if ((ind2 .ne. 0) .or. (ind3 .ne. 0)) cycle
-#elif twoD
+#elif defined(twoD)
           if (ind3 .ne. 0) cycle
 #endif
 
@@ -283,13 +283,13 @@ contains
     jx_buff(:, :, :) = 0.0
 
     cntr = 0
-    do ind1 = -1, 1
+    do ind3 = -1, 1
       do ind2 = -1, 1
-        do ind3 = -1, 1
+        do ind1 = -1, 1
           if ((ind1 .eq. 0) .and. (ind2 .eq. 0) .and. (ind3 .eq. 0)) cycle
 #ifdef oneD
           if ((ind2 .ne. 0) .or. (ind3 .ne. 0)) cycle
-#elif twoD
+#elif defined(twoD)
           if (ind3 .ne. 0) cycle
 #endif
           if (.not. associated(this_meshblock % ptr % neighbor(ind1, ind2, ind3) % ptr)) cycle
@@ -324,7 +324,7 @@ contains
 #ifdef oneD
           jmin = 0; jmax = 0
           kmin = 0; kmax = 0
-#elif twoD
+#elif defined(twoD)
           kmin = 0; kmax = 0
 #endif
 
@@ -332,9 +332,9 @@ contains
           !     in 3D: 26 directions, in 2D: 8, in 1D: 2
           mpi_offset = (cntr - 1) * sendrecv_offsetsz
           send_cnt = 1
-          do i = imin, imax
+          do k = kmin, kmax
             do j = jmin, jmax
-              do k = kmin, kmax
+              do i = imin, imax
                 send_fld(mpi_offset + send_cnt) = lg_arr(i, j, k)
                 send_cnt = send_cnt + 1
               end do
@@ -356,13 +356,13 @@ contains
     do while (.not. quit_loop)
       quit_loop = .true.
       cntr = 0
-      do ind1 = -1, 1
+      do ind3 = -1, 1
         do ind2 = -1, 1
-          do ind3 = -1, 1
+          do ind1 = -1, 1
             if ((ind1 .eq. 0) .and. (ind2 .eq. 0) .and. (ind3 .eq. 0)) cycle
 #ifdef oneD
             if ((ind2 .ne. 0) .or. (ind3 .ne. 0)) cycle
-#elif twoD
+#elif defined(twoD)
             if (ind3 .ne. 0) cycle
 #endif
             if (.not. associated(this_meshblock % ptr % neighbor(ind1, ind2, ind3) % ptr)) cycle
@@ -417,15 +417,15 @@ contains
 #ifdef oneD
                 jmin = 0; jmax = 0
                 kmin = 0; kmax = 0
-#elif twoD
+#elif defined(twoD)
                 kmin = 0; kmax = 0
 #endif
 
                 ! copy `recv_fld` to ghost cells
                 send_cnt = 1
-                do i = imin, imax
+                do k = kmin, kmax
                   do j = jmin, jmax
-                    do k = kmin, kmax
+                    do i = imin, imax
                       jx_buff(i, j, k) = jx_buff(i, j, k) + recv_fld(send_cnt)
                       send_cnt = send_cnt + 1
                     end do

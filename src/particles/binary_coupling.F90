@@ -92,7 +92,7 @@ contains
         ! evenly distribute the weight (this avoids creating tiny weight particles via splitting):
         wei_split = wei / CEILING(wei)
         set_weight = set_weight + wei
-        do q = 1, CEILING(wei)
+        do q = 1, (CEILING(wei))
           set_(i) % spec = s
           set_(i) % index = p
           set_(i) % wei = wei_split
@@ -101,6 +101,7 @@ contains
       end do
     end do
     set_size = i - 1
+    if (allocated(set)) deallocate (set)
     allocate (set(set_size))
     set(1:set_size) = set_(1:set_size)
   end subroutine prtlToSetWeighted
@@ -184,42 +185,15 @@ contains
       ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       call prtlToSetWeighted(ti, tj, tk, sp_arr_1, n_sp_1, set_1, num_1, wei_1)
       call prtlToSetWeighted(ti, tj, tk, sp_arr_2, n_sp_2, set_2, num_2, wei_2)
-      ! now we can simply work with `set_1` and `set_2`
+
       num_couples = min(num_1, num_2)
-      if ((num_1 .eq. 1) .and. (num_2 .eq. 1)) then
-        ! check most simple case
-        if ((set_1(num_1) % spec .eq. set_2(num_2) % spec) .and. &
-            (set_1(num_1) % index .eq. set_2(num_2) % index)) then
-          ! cannot pair a single particle to itself
-          num_couples = 0
-        else
-          ! trivial pairing
-          allocate (coupled_pairs(num_couples))
-          coupled_pairs(1) % part_1 = set_1(num_1)
-          coupled_pairs(1) % part_2 = set_2(num_2)
-        end if
-      else
-        ! if pairing is non trivial
-        allocate (coupled_pairs(num_couples))
-        pairing_correctQ = .false.
-        do while (.not. pairing_correctQ)
-          ! on average this will be performed `e~3` times ...
-          !     ... (if there are common elements in set #1 and #2)
-          call shuffleSet(set_1, num_1)
-          call shuffleSet(set_2, num_2)
-          pairing_correctQ = .true.
-          do i = 1, num_couples
-            if ((set_1(i) % spec .eq. set_2(i) % spec) .and. &
-                (set_1(i) % index .eq. set_2(i) % index)) then
-              ! check if the particle is coupled to itself
-              pairing_correctQ = .false.
-              exit
-            end if
-          end do
-        end do
-        do i = 1, num_couples
-          coupled_pairs(i) % part_1 = set_1(i)
-          coupled_pairs(i) % part_2 = set_2(i)
+      if (num_couples .gt. 0) then
+        allocate (coupled_pairs(max(num_1, num_2)))
+        call shuffleSet(set_1, num_1)
+        call shuffleSet(set_2, num_2)
+        do i = 1, max(num_1, num_2)
+          coupled_pairs(i) % part_1 = set_1(modulo(i-1, num_1)+1)
+          coupled_pairs(i) % part_2 = set_2(modulo(i-1, num_2)+1)
         end do
       end if
       ! . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .

@@ -83,7 +83,7 @@ contains
         end do
       end do
     end do
-#elif twoD
+#elif defined(twoD)
     kx = 5; ky = 2
     kx = kx * 2 * M_PI / global_mesh % sx
     ky = ky * 2 * M_PI / global_mesh % sy
@@ -111,7 +111,7 @@ contains
         end do
       end do
     end do
-#elif threeD
+#elif defined(threeD)
     kx = 5; ky = 2; kz = 2
     kx = kx * 2 * M_PI / global_mesh % sx
     ky = ky * 2 * M_PI / global_mesh % sy
@@ -200,5 +200,7 @@ contains
       updateB_ = .true.
     end if
   end subroutine userFieldBoundaryConditions
+  
+#include "optional.F"
   !............................................................!
 end module m_userfile

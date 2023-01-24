@@ -40,9 +40,9 @@ contains
     integer :: s, ti, tj, tk
     load_ALB = 0
     do s = 1, nspec
-      do ti = 1, species(s) % tile_nx
+      do tk = 1, species(s) % tile_nz
         do tj = 1, species(s) % tile_ny
-          do tk = 1, species(s) % tile_nz
+          do ti = 1, species(s) % tile_nx
             load_ALB = load_ALB + species(s) % prtl_tile(ti, tj, tk) % npart_sp
           end do
         end do
@@ -386,6 +386,8 @@ contains
     integer :: nproc_group, q, left_rnk, right_rnk, ierr
     integer :: i1_from, i2_from, j1_from, j2_from, k1_from, k2_from, &
                i1_to, i2_to, j1_to, j2_to, k1_to, k2_to
+    
+    call MPI_BARRIER(MPI_COMM_WORLD, ierr) !vanthi
     nproc_group = size(left_group)
 #ifdef DEBUG
     if (size(left_group) .ne. size(right_group)) then
@@ -422,6 +424,9 @@ contains
       if ((mpi_rank .eq. left_rnk) .or. (mpi_rank .eq. right_rnk)) then
         call deallocateFields()
         call reallocateFields(new_meshblocks(mpi_rank + 1))
+        ex(:,:,:) = 0.0; ey(:,:,:) = 0.0; ez(:,:,:) = 0.0
+        bx(:,:,:) = 0.0; by(:,:,:) = 0.0; bz(:,:,:) = 0.0
+        jx(:,:,:) = 0.0; jy(:,:,:) = 0.0; jz(:,:,:) = 0.0
         call reallocateFieldBuffers(new_meshblocks(mpi_rank + 1))
       end if
     end do
@@ -482,6 +487,8 @@ contains
     ! resize the meshblocks
     meshblocks(:) = new_meshblocks(:)
 
+    call MPI_BARRIER(MPI_COMM_WORLD, ierr)
+    
     ! deallocate buffers and redistribute particles
     do q = 1, nproc_group
       left_rnk = left_group(q)

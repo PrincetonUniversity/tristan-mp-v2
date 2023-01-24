@@ -131,7 +131,7 @@ contains
           if (spec_index .lt. 1) spec_index = 1
           if (spec_index .gt. rad_spec_num) spec_index = rad_spec_num
         end if
-        rad_spectra(s, spec_index) = rad_spectra(s, spec_index) + tau_emit
+        rad_spectra(s, spec_index) = rad_spectra(s, spec_index) + tau_emit * weight
       end if
     end if
   end subroutine particleRadiateSync
@@ -211,7 +211,7 @@ contains
           if (spec_index .lt. 1) spec_index = 1
           if (spec_index .gt. rad_spec_num) spec_index = rad_spec_num
         end if
-        rad_spectra(s, spec_index) = rad_spectra(s, spec_index) + tau_emit
+        rad_spectra(s, spec_index) = rad_spectra(s, spec_index) + tau_emit * weight
       end if
     end if
   end subroutine particleRadiateIC

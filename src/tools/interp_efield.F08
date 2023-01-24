@@ -17,7 +17,7 @@
   c0 = ez(lind, 0, 0)
   c1 = ez(lind + 1, 0, 0)
   ez0 = c0 * (1 - dx) + c1 * dx
-#elif twoD
+#elif defined(twoD)
   !e_x
   c000 = 0.5 * (ex(lind, -NGHOST, 0) + ex(lind - 1, -NGHOST, 0))
   c100 = 0.5 * (ex(lind, -NGHOST, 0) + ex(lind + 1, -NGHOST, 0))
@@ -44,7 +44,7 @@
   c00 = c000 * (1 - dx) + c100 * dx
   c10 = c010 * (1 - dx) + c110 * dx
   ez0 = c00 * (1 - dy) + c10 * dy
-#elif threeD
+#elif defined(threeD)
   !e_x
   c000 = 0.5 * (ex(lind, -NGHOST, -NGHOST) + ex(lind - 1, -NGHOST, -NGHOST))
   c100 = 0.5 * (ex(lind, -NGHOST, -NGHOST) + ex(lind + 1, -NGHOST, -NGHOST))

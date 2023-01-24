@@ -331,9 +331,9 @@ contains
     del_ex = (px_max - px_min) / dwn_n_mom_bins
     del_ey = (py_max - py_min) / dwn_n_mom_bins
     del_ez = (pz_max - pz_min) / dwn_n_mom_bins
-    do pi = 1, dwn_n_mom_bins
+    do pk = 1, dwn_n_mom_bins
       do pj = 1, dwn_n_mom_bins
-        do pk = 1, dwn_n_mom_bins
+        do pi = 1, dwn_n_mom_bins
           momentum_bins(pi, pj, pk) % px_min = px_min + (pi - 1) * del_ex
           momentum_bins(pi, pj, pk) % px_max = px_min + pi * del_ex
           momentum_bins(pi, pj, pk) % py_min = py_min + (pj - 1) * del_ey
@@ -358,9 +358,9 @@ contains
 
     allocate (position_bins(n_tile_sx, n_tile_sy, n_tile_sz))
 
-    do pi = 1, n_tile_sx
+    do pk = 1, n_tile_sz
       do pj = 1, n_tile_sy
-        do pk = 1, n_tile_sz
+        do pi = 1, n_tile_sx
           position_bins(pi, pj, pk) % npart = 0
           allocate (position_bins(pi, pj, pk) % indices(tile % npart_sp))
         end do

@@ -3,7 +3,7 @@ module m_writespectra
   use hdf5
   use m_globalnamespace, only: h5comm, h5info
 #endif
-  use m_globalnamespace, only: output_dir_name, mpi_rank
+  use m_globalnamespace, only: output_dir_name, mpi_rank, output_dir_spec
   use m_outputnamespace, only: glob_spectra, spec_bin_size, spec_nx, spec_ny, spec_nz, &
                                spec_num, spec_min, spec_max, spec_log_bins
   use m_aux
@@ -78,7 +78,7 @@ contains
       end do
 
       write (stepchar, "(i5.5)") step
-      filename = trim(output_dir_name)//'/spec.tot.'//trim(stepchar)
+      filename = trim(output_dir_spec)//'/spec.tot.'//trim(stepchar)
 
       ! Initialize FORTRAN interface
       call h5open_f(error)

@@ -23,6 +23,20 @@ contains
     call getInput('problem', 'shift_gamma', shift_gamma)
   end subroutine userReadInput
 
+  subroutine userDeallocate()
+    implicit none
+  end subroutine userDeallocate
+
+  subroutine writeUsrRestart(rst_file)
+    implicit none
+    integer, intent(in) :: rst_file
+  end subroutine writeUsrRestart
+
+  subroutine readUsrRestart(rst_file)
+    implicit none
+    integer, intent(in) :: rst_file
+  end subroutine readUsrRestart
+
   function userSpatialDistribution(x_glob, y_glob, z_glob, &
                                    dummy1, dummy2, dummy3)
     real :: userSpatialDistribution
@@ -150,4 +164,6 @@ contains
     end if
   end subroutine userFieldBoundaryConditions
   !............................................................!
+
+#include "optional.F"
 end module m_userfile

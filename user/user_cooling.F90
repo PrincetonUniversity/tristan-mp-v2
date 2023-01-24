@@ -139,4 +139,6 @@ contains
   end subroutine userFieldBoundaryConditions
   !............................................................!
 
+#include "optional.F"
+
 end module m_userfile

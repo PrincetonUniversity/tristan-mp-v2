@@ -1,4 +1,4 @@
-# Tristan v2.5
+# Tristan v2.6
 
 For detailed tutorials and code description please visit our [wiki](https://princetonuniversity.github.io/tristan-v2/). If you are a new user testing the code on a new computer cluster, please consider contributing to [this chapter](https://princetonuniversity.github.io/tristan-v2/tristanv2-configure.html#cluster-specific-customization) about cluster-specific configuration to make the life easier for future generations.
 
@@ -118,6 +118,16 @@ or in the VSCode environment (see the extension list in the `.vscode/settings.js
 __@TODO__
 
 ## Latest Releases
+* `v2.6` __Jan 2023__
+  * Minor cleanup + bugfixes
+* `v2.6r1` __Nov 2022__
+  * New absorption treatment with target B-field specified in the userfile
+  * Fieldsolvers separated into different files
+* `v2.5.2` __Nov 2022__
+  * Compton module now has `nph_over_ne` to mimic high photon-to-lepton ratio
+  * `absorb_x` now takes care of absorbing boundary conditions, while `boundary_x` is for MPI
+  * New userfiles for compton-mediated turbulence and reconnection
+  * Minor non-critical bugs
 * `v2.5.1` __Aug 2022__
   * Minor configure bug when working with non-intel compilers
   * Minor bug with `usroutput` flag
@@ -180,7 +190,8 @@ __@TODO__
 
 ---
 
-We employ [semantic versioning](https://semver.org/) for this code. Given a version number `v<MAJOR>.<MINOR>.<PATCH>`, increment the:
+We employ [semantic versioning](https://semver.org/) for this code. Given a version number `v<MAJOR>.<MINOR>.<PATCH>r<CANDIDATE>`, increment the:
 - `MAJOR` version when you make incompatible changes,
 - `MINOR` version when you add functionality in a backwards compatible manner, and
 - `PATCH` version when you make backwards compatible bug fixes.
+- `CANDIDATE`: release candidate for "nightly" builds

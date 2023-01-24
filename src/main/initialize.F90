@@ -23,8 +23,9 @@ module m_initialize
   use m_particlelogistics, only: initializeParticles
   use m_exchangeparts, only: initializePrtlExchange
   use m_currentdeposit, only: resetCurrents
+  use m_exchangefields
 
-  use m_userfile, only: userReadInput, userInitParticles, userInitFields
+  use m_userfile, only: userReadInput, userInitParticles, userInitFields, userFieldBoundaryConditions
 
 #ifdef SLB
   use m_userfile, only: user_slb_load_ptr => userSLBload
@@ -37,7 +38,7 @@ module m_initialize
   use m_writeusroutput, only: initializeUsrOutput
 #endif
 
-  use m_restart, only: initializeRestart, restartSimulation, rst_simulation, rst_enable
+  use m_restart, only: initializeRestart, restartSimulation, rst_simulation, rst_enable, rst_tlim_enable
 
   use m_particlebinning
 
@@ -120,8 +121,10 @@ contains
     call initializeRandomSeed(mpi_rank)
 
     if (.not. rst_simulation) then
-      call userInitParticles()
       call userInitFields()
+      call userFieldBoundaryConditions(0, updateE=.true., updateB=.true.)
+      call exchangeFields(exchangeE=.true., exchangeB=.true.)
+      call userInitParticles()
       call printDiag("userInitialize()", 1)
     else
       call restartSimulation()
@@ -270,37 +273,31 @@ contains
       call throwError('ERROR: grid size is not evenly divisible by the number of cores')
     end if
 
-    call getInput('grid', 'abs_thick', ds_abs, 10.0)
     call getInput('grid', 'boundary_x', boundary_x, 1)
     call getInput('grid', 'boundary_y', boundary_y, 1)
     call getInput('grid', 'boundary_z', boundary_z, 1)
 #ifdef oneD
     boundary_y = 1
     boundary_z = 1
-    if (boundary_x .eq. 2) then
-#ifndef ABSORB
-      call throwError('ERROR. define `-DABSORB` flag during compilation for absorbing boundaries.')
-#endif
-    end if
-#elif twoD
+#elif defined(twoD)
     boundary_z = 1
-    if ((boundary_x .eq. 2) .or. (boundary_y .eq. 2)) then
-      boundary_x = 2
-      boundary_y = 2
-#ifndef ABSORB
-      call throwError('ERROR. define `-DABSORB` flag during compilation for absorbing boundaries.')
 #endif
-    end if
-#elif threeD
-    if ((boundary_x .eq. 2) .or. (boundary_y .eq. 2) .or. (boundary_z .eq. 2)) then
-      boundary_x = 2
-      boundary_y = 2
-      boundary_z = 2
+
+    call getInput('grid', 'abs_thick', ds_abs, 10.0)
+    call getInput('grid', 'absorb_x', absorb_x, 0)
+    call getInput('grid', 'absorb_y', absorb_y, 0)
+    call getInput('grid', 'absorb_z', absorb_z, 0)
 #ifndef ABSORB
-      call throwError('ERROR. define `-DABSORB` flag during compilation for absorbing boundaries.')
-#endif
+    if (absorb_x .ne. 0 .or. absorb_y .ne. 0 .or. absorb_z .ne. 0) then
+      call throwError('ERROR: `absorb_x`, `absorb_y`, and `absorb_z` are only valid if ABSORB is defined')
     end if
 #endif
+
+    if ((absorb_x .eq. 2) .or. (absorb_y .eq. 2) .or. (absorb_z .eq. 2)) then
+      absorb_x = 2
+      absorb_y = 2
+      absorb_z = 2
+    end if
   end subroutine initializeDomain
 
   subroutine distributeMeshblocks()
@@ -333,6 +330,7 @@ contains
   subroutine initializeSimulation()
     implicit none
     call getInput('time', 'last', final_timestep, 1000)
+    call getInput('time', 'wall_t_max', wall_t_max, real(0,8))
     call getInput('algorithm', 'nfilter', nfilter, 16)
     call getInput('algorithm', 'c', CC, 0.45)
     call getInput('algorithm', 'corr', CORR, 1.025)
@@ -347,6 +345,7 @@ contains
     call renormalizeUnits()
 
     call getInput('grid', 'resize_tiles', resize_tiles, .false.)
+    call getInput('grid', 'shrink_tiles', shrink_tiles, .false.)
     call getInput('grid', 'min_tile_nprt', min_tile_nprt, 100)
 
     call printDiag("initializeSimulation()", 1)
@@ -364,7 +363,13 @@ contains
     if (mpi_rank .eq. 0) then
 #ifdef IFPORT
       result = makedirqq(trim(output_dir_name))
-      if (rst_enable) then
+      output_dir_spec = trim(output_dir_name)//'/spec'
+      output_dir_flds = trim(output_dir_name)//'/flds'
+      output_dir_prtl = trim(output_dir_name)//'/prtl'
+      result = makedirqq(trim(output_dir_spec))
+      result = makedirqq(trim(output_dir_flds))
+      result = makedirqq(trim(output_dir_prtl))
+      if (rst_enable .or. rst_tlim_enable) then
         result = makedirqq(trim(restart_dir_name))
       end if
       if (slice_output_enable) then
@@ -372,7 +377,13 @@ contains
       end if
 #else
       call system('mkdir -p '//trim(output_dir_name))
-      if (rst_enable) then
+      output_dir_spec = trim(output_dir_name)//'/spec'
+      output_dir_flds = trim(output_dir_name)//'/flds'
+      output_dir_prtl = trim(output_dir_name)//'/prtl'
+      call system('mkdir -p '//trim(output_dir_spec))
+      call system('mkdir -p '//trim(output_dir_flds))
+      call system('mkdir -p '//trim(output_dir_prtl))
+      if (rst_enable .or. rst_tlim_enable) then
         call system('mkdir -p '//trim(restart_dir_name))
       end if
       if (slice_output_enable) then

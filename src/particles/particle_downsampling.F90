@@ -1,5 +1,4 @@
 module m_particledownsampling
-#ifdef DOWNSAMPLING
 
   use m_globalnamespace
   use m_aux
@@ -9,6 +8,7 @@ module m_particledownsampling
   use m_particles
   use m_particlelogistics
   use m_particlebinning
+#ifdef DOWNSAMPLING
   implicit none
 
   ! Auxiliary type for a group of merging particles
@@ -63,9 +63,9 @@ contains
       if (species(s) % dwn_sp .and. species(s) % ch_sp .ne. 0) then
         ! merging of charged particles based on cells
 
-        do ti = 1, species(s) % tile_nx
+        do tk = 1, species(s) % tile_nz
           do tj = 1, species(s) % tile_ny
-            do tk = 1, species(s) % tile_nz
+            do ti = 1, species(s) % tile_nx
 
 #ifdef DEBUG
               nbinned = 0
@@ -82,9 +82,9 @@ contains
               if (allocated(downsampling_tile)) deallocate (downsampling_tile)
               allocate (downsampling_tile)
 
-              do pi = 1, nx_bin
+              do pk = 1, nz_bin
                 do pj = 1, ny_bin
-                  do pk = 1, nz_bin
+                  do pi = 1, nx_bin
 
                     call allocateParticlesOnEmptyTile(downsampling_tile, position_grid(pi, pj, pk) % npart)
 
@@ -134,14 +134,14 @@ contains
 
               if (allocated(downsampling_tile)) deallocate (downsampling_tile)
 
-            end do ! loop tk
+            end do ! loop ti
           end do ! loop tj
-        end do ! loop ti
+        end do ! loop tk
       else if (species(s) % dwn_sp .and. species(s) % ch_sp .eq. 0) then
         ! merging of photons based on tiles
-        do ti = 1, species(s) % tile_nx
+        do tk = 1, species(s) % tile_nz
           do tj = 1, species(s) % tile_ny
-            do tk = 1, species(s) % tile_nz
+            do ti = 1, species(s) % tile_nx
               if (species(s) % prtl_tile(ti, tj, tk) % npart_sp .gt. 5) then
                 ! decide whether to use cartesian OR spherical binning
                 if (dwn_cartesian_bins) then
@@ -375,9 +375,9 @@ contains
     real :: px_mid, py_mid, pz_mid
 
     ! loop through all the bins
-    do pi = 1, dwn_n_mom_bins
+    do pk = 1, dwn_n_mom_bins
       do pj = 1, dwn_n_mom_bins
-        do pk = 1, dwn_n_mom_bins
+        do pi = 1, dwn_n_mom_bins
           npart = momentum_bins(pi, pj, pk) % npart
 
           if (npart .gt. 5) then

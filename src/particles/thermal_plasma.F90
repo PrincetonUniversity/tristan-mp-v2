@@ -94,100 +94,86 @@ contains
     end do
   end subroutine tabulateMaxwellian
 
+  ! FIX: add tabulated Maxwellian
   subroutine generateFromMaxwellian(maxw, u_, v_, w_)
     implicit none
     type(maxwellian), intent(inout) :: maxw
     real, intent(out) :: u_, v_, w_
     real :: U = 0.0, ETA = 0.0, X1, X2, X3, X4, X5, X6, X7, X8, dx1, dx2, BETA, gamma
     logical :: flag
-    integer :: iter
-
-    if ((maxw % temperature .lt. t_crit) .or. (maxw % dimension .ne. 3)) then
-      ! using tabulated Maxwellian
-      if (.not. maxw % generated) then
-        call tabulateMaxwellian(maxw)
-      end if
-      X3 = random(dseed)
-      do iter = 1, maxw % npoints
-        if (maxw % DF_table(iter) .ge. X3) then
-          if (iter .gt. 1) then
-            dx1 = (maxw % DF_table(iter) - X3) / (maxw % DF_table(iter) - maxw % DF_table(iter - 1))
-            dx2 = (X3 - maxw % DF_table(iter - 1)) / (maxw % DF_table(iter) - maxw % DF_table(iter - 1))
-            U = maxw % u_table(iter) * dx2 + &
-                maxw % u_table(iter - 1) * dx1
-          else
-            dx2 = X3 / maxw % DF_table(iter)
-            U = maxw % u_table(iter) * dx2
-          end if
-          ! if T < t_nonrel -> convert from `beta` to `4-velocity`
-          if (maxw % temperature .lt. t_nonrel) then
-            U = U / sqrt(1.0 - U**2)
-          end if
-          exit
+    integer :: iter, dim_
+    u_ = 0.0; v_ = 0.0; w_ = 0.0
+    if (maxw % temperature .le. t_crit) then
+      do dim_ = 1, maxw % dimension
+        X8 = 1.0; X1 = 1.0; X2 = 1.0
+        do while ((X8 .gt. 0.27597) .and. &
+                  ((X8 .gt. 0.27846) .or. (X1 .lt. 1e-16) .or. (X2**2 .gt. -4 * log(X1) * X1**2)))
+          X1 = random(dseed)
+          X2 = 1.7156 * (random(dseed) - 0.5)
+          X3 = X1 - 0.449871
+          X4 = abs(X2) + 0.386595
+          X8 = X3**2 + X4 * (0.196 * X4 - 0.25472 * X3)
+        end do
+        if (dim_ .eq. 1) then
+          u_ = X2 / X1 * sqrt(maxw % temperature)
+        else if (dim_ .eq. 2) then
+          v_ = X2 / X1 * sqrt(maxw % temperature)
+        else if (dim_ .eq. 3) then
+          w_ = X2 / X1 * sqrt(maxw % temperature)
         end if
       end do
     else
-      ! using Sobol method
-      flag = .false.
-      do while (.not. flag)
+      ETA = 0.0; U = 0.0
+      do while (ETA**2 - U**2 .le. 1)
         X4 = random(dseed); X5 = random(dseed)
         X6 = random(dseed); X7 = random(dseed)
-        if (X4 * X5 * X6 * X7 .eq. 0) cycle
-        U = -maxw % temperature * log(X4 * X5 * X6)
-        ETA = -maxw % temperature * log(X4 * X5 * X6 * X7)
-        if (ETA**2 - U**2 .gt. 1) then
-          flag = .true.
-        end if
+        X8 = X4 * X5 * X6 * X7
+        if (X8 .lt. 1e-16) cycle
+        U = -maxw % temperature * log(X8 / X7)
+        ETA = -maxw % temperature * log(X8)
       end do
+      if (maxw % dimension .eq. 1) then
+        u_ = U * SIGN(1.0, 0.5 - random(dseed))
+      else if (maxw % dimension .eq. 2) then
+        X1 = 2.0 * M_PI * random(dseed)
+        u_ = U * cos(X1)
+        v_ = U * sin(X1)
+      else if (maxw % dimension .eq. 3) then
+        X1 = 1.0 - 2.0 * random(dseed)
+        X2 = 2.0 * M_PI * random(dseed)
+        w_ = U * X1
+        X1 = sqrt(1.0 - X1**2)
+        u_ = U * X1 * cos(X2)
+        v_ = U * X1 * sin(X2)
+      end if
     end if
-
-    ! generate projections
-    if (maxw % dimension .eq. 1) then
-      X1 = random(dseed)
-      u_ = SIGN(U, X1 - 0.5)
-      v_ = 0.0
-      w_ = 0.0
-    else if (maxw % dimension .eq. 2) then
-      X1 = random(dseed)
-      u_ = U * sin(2.0 * M_PI * X1)
-      v_ = U * cos(2.0 * M_PI * X1)
-      w_ = 0.0
-    else if (maxw % dimension .eq. 3) then
-      X1 = random(dseed); X2 = random(dseed)
-      u_ = U * (2.0 * X1 - 1.0)
-      v_ = 2.0 * U * sqrt(X1 * (1.0 - X1)) * cos(2.0 * M_PI * X2)
-      w_ = 2.0 * U * sqrt(X1 * (1.0 - X1)) * sin(2.0 * M_PI * X2)
-    else
-      call throwError('ERROR: Unknown dimension in `generateFromMaxwellian`.')
-    end if
-
     ! shift maxwellian
     if (maxw % shift_flag) then
       X8 = random(dseed)
-      gamma = sqrt(1.0 + U**2)
+      gamma = sqrt(1.0 + u_**2 + v_**2 + w_**2)
       BETA = sqrt(1.0 - 1.0 / maxw % shift_gamma**2)
       select case (maxw % shift_dir)
       case (+1) ! +x
         if (-BETA * u_ / gamma .gt. X8) u_ = -u_
-        u_ = maxw % shift_gamma * (u_ + BETA * sqrt(1 + U**2))
+        u_ = maxw % shift_gamma * (u_ + BETA * gamma)
       case (-1) ! -x
         BETA = -BETA
         if (-BETA * u_ / gamma .gt. X8) u_ = -u_
-        u_ = maxw % shift_gamma * (u_ + BETA * sqrt(1 + U**2))
+        u_ = maxw % shift_gamma * (u_ + BETA * gamma)
       case (+2) ! +y
         if (-BETA * v_ / gamma .gt. X8) v_ = -v_
-        v_ = maxw % shift_gamma * (v_ + BETA * sqrt(1 + U**2))
+        v_ = maxw % shift_gamma * (v_ + BETA * gamma)
       case (-2) ! -y
         BETA = -BETA
         if (-BETA * v_ / gamma .gt. X8) v_ = -v_
-        v_ = maxw % shift_gamma * (v_ + BETA * sqrt(1 + U**2))
+        v_ = maxw % shift_gamma * (v_ + BETA * gamma)
       case (+3) ! +z
         if (-BETA * w_ / gamma .gt. X8) w_ = -w_
-        w_ = maxw % shift_gamma * (w_ + BETA * sqrt(1 + U**2))
+        w_ = maxw % shift_gamma * (w_ + BETA * gamma)
       case (-3) ! -z
         BETA = -BETA
         if (-BETA * w_ / gamma .gt. X8) w_ = -w_
-        w_ = maxw % shift_gamma * (w_ + BETA * sqrt(1 + U**2))
+        w_ = maxw % shift_gamma * (w_ + BETA * gamma)
       case default
       end select
     end if
@@ -281,14 +267,14 @@ contains
     call globalToLocalCoords(fill_region % x_max, 0.0, 0.0, &
                              fill_xmax, fill_ymax, fill_zmax, adjustQ=.true.)
     num_part_r = REAL(ndens_sp) * (fill_xmax - fill_xmin)
-#elif twoD
+#elif defined(twoD)
     call globalToLocalCoords(fill_region % x_min, fill_region % y_min, 0.0, &
                              fill_xmin, fill_ymin, fill_zmin, adjustQ=.true.)
     call globalToLocalCoords(fill_region % x_max, fill_region % y_max, 0.0, &
                              fill_xmax, fill_ymax, fill_zmax, adjustQ=.true.)
     num_part_r = REAL(ndens_sp) * (fill_xmax - fill_xmin) &
                  * (fill_ymax - fill_ymin)
-#elif threeD
+#elif defined(threeD)
     call globalToLocalCoords(fill_region % x_min, fill_region % y_min, fill_region % z_min, &
                              fill_xmin, fill_ymin, fill_zmin, adjustQ=.true.)
     call globalToLocalCoords(fill_region % x_max, fill_region % y_max, fill_region % z_max, &

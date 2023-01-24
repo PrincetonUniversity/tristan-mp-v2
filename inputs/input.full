@@ -22,6 +22,8 @@
 <time>
 
   last           = 1000          # last timestep [1000]
+  wall_t_max     = 3600          # wall time limit for the simulation in seconds [0.0]
+                                 # this parameter is ignored unless tlim_enable = 1 
 
 <grid>
 
@@ -29,17 +31,21 @@
   my0           = 64             # number of actual grid points in the y direction [*] if 2d+
   mz0           = 1              # number of actual grid points in the z direction [*] if 3d
 
-  # 1 = periodic, 0 = outflow, 2 = radial outflow ...
-  # ... if either is "2" all will be assigned to "2"
+  # 1 = periodic, 0 = open
   boundary_x    = 1              # boundary in x [1]
   boundary_y    = 1              # boundary in y [1]
   boundary_z    = 1              # boundary in z [1]
   abs_thick     = 20             # thickness of the absorption layer [10]
-  # `abs_thick` used only when boundary is `1` or `2`
+                                 # `abs_thick` used only when boundary is `1` or `2`
+  # absorbing layer 0 -- OFF, 1 -- regular, 2 -- radial outflow ...
+  # ... if either is "2" all will be assigned to "2"
+  absorb_x      = 1              # absorption in x [1]
+  absorb_y      = 1              # absorption in y [1]
+  absorb_z      = 1              # absorption in z [1]
 
   resize_tiles  = 0              # reallocate particle tiles if necessary [0]
   min_tile_nprt = 1000           # min # of allocated particles per tile [100]
-  max_buff      = 100            # max overdensity to be passed between meshblocks [100]
+  max_buff      = 32             # max overdensity to be passed between meshblocks [32]
 
   tileX         = 5              # tile dimension in x [* if 1d+]
   tileY         = 5              # tile dimension in y [* if 2d+]
@@ -67,6 +73,7 @@
   start         = 1              # first restart step [0]
   interval      = 1000           # step interval between restarts [10000]
   rewrite       = 1              # 1 = rewrite each restart; 0 = separate restart each time [0]
+  tlim_enable   = 1              # write restart and exit simulation when wall clock limit is exceeded [0]
 
 <output>
 
@@ -83,21 +90,26 @@
   stride        = 100            # particle stride [10]
   istep         = 4              # field downsampling [1]
   smooth_window = 2              # window for gaussian smoothing of the densities [2]
-  flds_at_prtl  = 1              # save fields at particle position [0]
   write_xdmf    = 1              # enable XDMF file writing (to open hdf5 in VisIt) [1]
   write_nablas  = 1              # write divE & curlB [0]
   write_T0i     = 1              # write T0i of the stress-energ tensor [0]
   write_Tii     = 1              # write diagonal (Tii) [0]
   write_Tij     = 1              # write off diagonal [0]
-	write_npart 	= 1					 		 # write average particle weights per cell [0]
+  write_npart 	= 1              # write average particle weights per cell [0]
+  write_prtl_curr = 0            # store electric current of each charged species [0]
+  write_fluid_vel = 0            # store bulk fluid velocity [0]
+  write_sq_momenta = 0           # store cell-averaged squared momenta for each species [0]
+  flds_write_every = 1           # store flds data every [flds_write_every] step of the main output step [1]
+  prtl_write_every = 1           # store prtl data every [prtl_write_every] step of the main output step [1]
+  spec_write_every = 1           # store spec data every [spec_write_every] step of the main output step [1]
 
   # history output
   hst_enable    = 0              # enable/disable history output [0]
   hst_interval  = 1              # interval between history output steps [1]
 
-	# user-specific output
-	usr_enable    = 0							 # enable/disable usr-output [0]
-	usr_interval  = 100						 # interval between usr-output steps [100]
+  # user-specific output
+  usr_enable    = 0              # enable/disable usr-output [0]
+  usr_interval  = 1              # interval between usr-output steps [100]
 
   # spectra output
   # bins are `g - 1` for massive and `e` for massless
@@ -187,8 +199,12 @@
   deposit1      = 1             # does species deposit current? [1] if (ch != 0) else [0]
   move1         = 1             # does species move? [1]
   cool1         = 1             # does species radiate (`rad` flag required)? [1]
-  output1       = 0             # are species written to `prtl` [1]
-	annihilation1 = 1							# species can participate in pair annihilation [0]
+  output_hist1  = 1             # store species mean energy & density in history file [1]
+  output_fld1   = 1             # store species field data into flds files [1]
+  output_prtl1  = 1             # store species raw particle data [1]
+  flds_at_prtl1 = 1             # store EM fields at particles positions [0]
+  dens_at_prtl1 = 1             # store density fields at particles positions [0]
+  annihilation1 = 1             # species can participate in pair annihilation [0]
 
   maxptl2       = 1e6
   m2            = 1
@@ -196,8 +212,8 @@
   deposit2      = 1
   move2         = 1
   cool2         = 0
-  gca2          = 1             # does species do GCA (`gcaiter` flag required)? [1] if (ch != 0) else [0]
-	annihilation2 = 1
+  gca2          = 1
+  annihilation2 = 1             # species can participate in pair annihilation [0]
 
   maxptl3       = 1e6
   m3            = 0
@@ -239,12 +255,12 @@
 
   emit_gamma_syn = 10           # determines synchrotron photon peak energy [10]
   gamma_syn     = 5             # determines the synchrotron cooling rate [10]
-	emit_gamma_ic = 10            # determines IC photon peak energy [10]
+  emit_gamma_ic = 10            # determines IC photon peak energy [10]
   gamma_ic      = 5             # determines the IC cooling rate [10]
   beta_rec      = 0.1           # fiducial number that goes into the definition of `gamma_syn` and `gamma_ic` [0.1]
   photon_sp     = 3             # emit photons to species (`emit` flag) [3]
   dens_limit    = 100           # density limit on the cooled region (0 = disable limiter) [0]
-	cool_limit    = 0						  # limit cooling if `du > fraction of u` (defines the fraction) (0 = disable limiter) [0]
+  cool_limit    = 0             # limit cooling if `du > fraction of u` (defines the fraction) (0 = disable limiter) [0]
 
 <qed>
 
@@ -262,13 +278,17 @@
 <compton>
 
   interval      = 1             # scatter once every `interval` timestep [1]
-  el_recoil     = 0						  # enable/disable electron recoil [1]
-  Thomson_lim   = 1e-5					# above this energy KN will be used [1e-6]
+  el_recoil     = 0		# enable/disable electron recoil [1]
+  Thomson_lim   = 1e-5		# above this energy KN will be used [1e-6]
+  nph_over_ne   = 1.0           # fiducial ratio of the (physical) photon to electron density [1.0]
+  clone_sets    = 1             # improve pairing in MC cells where one species has
+                                # higher total weight than the other by making virtual copies
+                                # of particles from the set with the smaller weight [1]
 
 <annihilation>
 
-	interval			= 1							# perform pair annihilation every `interval` timestep [1]
-	photon_sp			= 3							# produced photons are saved to species #... [3]
-	sporadic      = 0							# enable/disable sporadic annihilation for interval > 1 [0]
+  interval	= 1		# perform pair annihilation every `interval` timestep [1]
+  photon_sp	= 3		# produced photons are saved to species #... [3]
+  sporadic      = 0		# enable/disable sporadic annihilation for interval > 1 [0]
 
 <problem>

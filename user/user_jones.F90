@@ -151,5 +151,7 @@ contains
       updateB_ = .true.
     end if
   end subroutine userFieldBoundaryConditions
+
+#include "optional.F"
   !............................................................!
 end module m_userfile

@@ -219,6 +219,8 @@ contains
   end subroutine userFieldBoundaryConditions
   !............................................................!
 
+#include "optional.F"
+
   !--- user-specific output -----------------------------------!
 #ifdef USROUTPUT
     subroutine userOutput(step)

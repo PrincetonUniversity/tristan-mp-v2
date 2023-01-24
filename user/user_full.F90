@@ -25,6 +25,24 @@ contains
     implicit none
   end subroutine userReadInput
 
+#ifdef PRTLPAYLOADS
+  elemental subroutine usrSetPhPld(u0, v0, w0, over_e_temp, incr_pld1, incr_pld2, incr_pld3)
+    !$omp declare simd(usrSetPhPld)
+    real, intent(in) :: u0, v0, w0, over_e_temp
+    real, intent(out) :: incr_pld1, incr_pld2, incr_pld3
+  end subroutine
+  elemental subroutine usrSetElPld(q_over_m, u0, v0, w0, over_e_temp, ex0, &
+                                   ey0, ez0, bx0, by0, bz0, incr_pld1, incr_pld2, incr_pld3)
+    !$omp declare simd(usrSetElPld)
+    real, intent(in) :: q_over_m, u0, v0, w0, over_e_temp, ex0, ey0, ez0, bx0, by0, bz0
+    real, intent(out) :: incr_pld1, incr_pld2, incr_pld3
+  end subroutine
+#endif
+
+  subroutine userDeallocate()
+    implicit none
+  end subroutine userDeallocate
+
   function userSpatialDistribution(x_glob, y_glob, z_glob, &
                                    dummy1, dummy2, dummy3)
     real :: userSpatialDistribution
@@ -136,6 +154,16 @@ contains
     end if
   end subroutine userFieldBoundaryConditions
   !............................................................!
+
+  subroutine writeUsrRestart(rst_file)
+    implicit none
+    integer, intent(in) :: rst_file
+  end subroutine writeUsrRestart
+
+  subroutine readUsrRestart(rst_file)
+    implicit none
+    integer, intent(in) :: rst_file
+  end subroutine readUsrRestart
 
   !--- user-specific output -----------------------------------!
 #ifdef USROUTPUT

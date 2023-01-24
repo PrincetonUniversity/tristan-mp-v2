@@ -51,7 +51,7 @@ contains
 #ifdef oneD
     jmin = 0; jmax = 0
     kmin = 0; kmax = 0
-#elif twoD
+#elif defined(twoD)
     kmin = 0; kmax = 0
 #endif
 
@@ -72,12 +72,11 @@ contains
     send_cnt = send_cnt - 1
   end subroutine findCnt
 
-  subroutine bufferSendArray(offset, ind1, ind2, ind3, exchangeE, exchangeB, send_cnt)
+  subroutine bufferSendArray(ind1, ind2, ind3, exchangeE, exchangeB, send_cnt)
     implicit none
-    integer :: imin, imax, jmin, jmax, kmin, kmax, i, j, k
+    integer :: imin, imax, jmin, jmax, kmin, kmax, i, j, k, idiff
     logical, intent(in) :: exchangeE, exchangeB
     integer, intent(in) :: ind1, ind2, ind3
-    integer, intent(in) :: offset
     integer, intent(out) :: send_cnt
     imin = -2 * NGHOST
     imax = -2 * NGHOST
@@ -111,7 +110,7 @@ contains
 #ifdef oneD
     jmin = 0; jmax = 0
     kmin = 0; kmax = 0
-#elif twoD
+#elif defined(twoD)
     kmin = 0; kmax = 0
 #endif
 
@@ -122,22 +121,25 @@ contains
     end if
 
     send_cnt = 1
-    do i = imin, imax
+    idiff = imax - imin
+    do k = kmin, kmax
       do j = jmin, jmax
-        do k = kmin, kmax
-          if (exchangeE) then
-            send_EB(offset + send_cnt + 0) = ex(i, j, k)
-            send_EB(offset + send_cnt + 1) = ey(i, j, k)
-            send_EB(offset + send_cnt + 2) = ez(i, j, k)
-            send_cnt = send_cnt + 3
-          end if
-          if (exchangeB) then
-            send_EB(offset + send_cnt + 0) = bx(i, j, k)
-            send_EB(offset + send_cnt + 1) = by(i, j, k)
-            send_EB(offset + send_cnt + 2) = bz(i, j, k)
-            send_cnt = send_cnt + 3
-          end if
-        end do
+        if (exchangeE) then
+          send_EB(send_cnt:send_cnt + idiff) = ex(imin:imax, j, k)
+          send_cnt = send_cnt + idiff + 1
+          send_EB(send_cnt:send_cnt + idiff) = ey(imin:imax, j, k)
+          send_cnt = send_cnt + idiff + 1
+          send_EB(send_cnt:send_cnt + idiff) = ez(imin:imax, j, k)
+          send_cnt = send_cnt + idiff + 1
+        end if
+        if (exchangeB) then
+          send_EB(send_cnt:send_cnt + idiff) = bx(imin:imax, j, k)
+          send_cnt = send_cnt + idiff + 1
+          send_EB(send_cnt:send_cnt + idiff) = by(imin:imax, j, k)
+          send_cnt = send_cnt + idiff + 1
+          send_EB(send_cnt:send_cnt + idiff) = bz(imin:imax, j, k)
+          send_cnt = send_cnt + idiff + 1
+        end if
       end do
     end do
     send_cnt = send_cnt - 1
@@ -145,7 +147,7 @@ contains
 
   subroutine extractRecvArray(ind1, ind2, ind3, exchangeE, exchangeB)
     implicit none
-    integer :: imin, imax, jmin, jmax, kmin, kmax, i, j, k
+    integer :: imin, imax, jmin, jmax, kmin, kmax, i, j, k, idiff
     integer, intent(in) :: ind1, ind2, ind3
     logical, intent(in) :: exchangeE, exchangeB
     integer :: cnt
@@ -181,7 +183,7 @@ contains
 #ifdef oneD
     jmin = 0; jmax = 0
     kmin = 0; kmax = 0
-#elif twoD
+#elif defined(twoD)
     kmin = 0; kmax = 0
 #endif
 
@@ -193,22 +195,25 @@ contains
 
     ! copy `recv_fld` to ghost cells
     cnt = 1
-    do i = imin, imax
+    idiff = imax - imin
+    do k = kmin, kmax
       do j = jmin, jmax
-        do k = kmin, kmax
-          if (exchangeE) then
-            ex(i, j, k) = recv_fld(cnt + 0)
-            ey(i, j, k) = recv_fld(cnt + 1)
-            ez(i, j, k) = recv_fld(cnt + 2)
-            cnt = cnt + 3
-          end if
-          if (exchangeB) then
-            bx(i, j, k) = recv_fld(cnt + 0)
-            by(i, j, k) = recv_fld(cnt + 1)
-            bz(i, j, k) = recv_fld(cnt + 2)
-            cnt = cnt + 3
-          end if
-        end do
+        if (exchangeE) then
+          ex(imin:imax, j, k) = recv_fld(cnt:cnt + idiff)
+          cnt = cnt + idiff + 1
+          ey(imin:imax, j, k) = recv_fld(cnt:cnt + idiff)
+          cnt = cnt + idiff + 1
+          ez(imin:imax, j, k) = recv_fld(cnt:cnt + idiff)
+          cnt = cnt + idiff + 1
+        end if
+        if (exchangeB) then
+          bx(imin:imax, j, k) = recv_fld(cnt:cnt + idiff)
+          cnt = cnt + idiff + 1
+          by(imin:imax, j, k) = recv_fld(cnt:cnt + idiff)
+          cnt = cnt + idiff + 1
+          bz(imin:imax, j, k) = recv_fld(cnt:cnt + idiff)
+          cnt = cnt + idiff + 1
+        end if
       end do
     end do
   end subroutine extractRecvArray
@@ -234,13 +239,13 @@ contains
     end if
 
     ! looping through all send directions
-    do ind1 = -1, 1
+    do ind3 = -1, 1
       do ind2 = -1, 1
-        do ind3 = -1, 1
+        do ind1 = -1, 1
           if ((ind1 .eq. 0) .and. (ind2 .eq. 0) .and. (ind3 .eq. 0)) cycle
 #ifdef oneD
           if ((ind2 .ne. 0) .or. (ind3 .ne. 0)) cycle
-#elif twoD
+#elif defined(twoD)
           if (ind3 .ne. 0) cycle
 #endif
           mpi_tag = 100 + (ind3 + 2) + 3 * (ind2 + 1) + 9 * (ind1 + 1)
@@ -250,7 +255,7 @@ contains
             mpi_sendto = this_meshblock % ptr % neighbor(ind1, ind2, ind3) % ptr % rnk
             mpi_recvfrom = this_meshblock % ptr % neighbor(-ind1, -ind2, -ind3) % ptr % rnk
 
-            call bufferSendArray(0, ind1, ind2, ind3, exchangeE, exchangeB, cnt)
+            call bufferSendArray(ind1, ind2, ind3, exchangeE, exchangeB, cnt)
 
             call MPI_SENDRECV(send_EB(1:cnt), cnt, default_mpi_real, mpi_sendto, mpi_tag, &
                               recv_fld(1:cnt), cnt, default_mpi_real, mpi_recvfrom, mpi_tag, &
@@ -263,7 +268,7 @@ contains
             call extractRecvArray(-ind1, -ind2, -ind3, exchangeE, exchangeB)
           else if ((.not. should_recv) .and. should_send) then
             mpi_sendto = this_meshblock % ptr % neighbor(ind1, ind2, ind3) % ptr % rnk
-            call bufferSendArray(0, ind1, ind2, ind3, exchangeE, exchangeB, cnt)
+            call bufferSendArray(ind1, ind2, ind3, exchangeE, exchangeB, cnt)
             call MPI_SEND(send_EB(1:cnt), cnt, default_mpi_real, mpi_sendto, mpi_tag, MPI_COMM_WORLD, ierr)
           end if
         end do
@@ -277,7 +282,7 @@ contains
   subroutine exchangeFields(exchangeE, exchangeB)
     implicit none
     logical, intent(in) :: exchangeE, exchangeB
-    integer :: i, j, k, imin, imax, jmin, jmax, kmin, kmax
+    integer :: i, j, k, imin, imax, jmin, jmax, kmin, kmax, idiff, loc
     integer :: ind1, ind2, ind3, cntr, n_cntr
     integer :: send_cnt, recv_cnt, ierr
     integer :: mpi_sendto, mpi_recvfrom, mpi_sendtag, mpi_recvtag
@@ -305,13 +310,13 @@ contains
     allocate (mpi_recvflags(sendrecv_neighbors))
 
     cntr = 0
-    do ind1 = -1, 1
+    do ind3 = -1, 1
       do ind2 = -1, 1
-        do ind3 = -1, 1
+        do ind1 = -1, 1
           if ((ind1 .eq. 0) .and. (ind2 .eq. 0) .and. (ind3 .eq. 0)) cycle
 #ifdef oneD
           if ((ind2 .ne. 0) .or. (ind3 .ne. 0)) cycle
-#elif twoD
+#elif defined(twoD)
           if (ind3 .ne. 0) cycle
 #endif
           if (.not. associated(this_meshblock % ptr % neighbor(ind1, ind2, ind3) % ptr)) cycle
@@ -345,7 +350,7 @@ contains
 #ifdef oneD
           jmin = 0; jmax = 0
           kmin = 0; kmax = 0
-#elif twoD
+#elif defined(twoD)
           kmin = 0; kmax = 0
 #endif
 
@@ -353,22 +358,28 @@ contains
           !     in 3D: 26 directions, in 2D: 8, in 1D: 2
           mpi_offset = (cntr - 1) * sendrecv_offsetsz
           send_cnt = 1
-          do i = imin, imax
+          idiff = imax - imin
+          loc = mpi_offset + send_cnt
+          do k = kmin, kmax
             do j = jmin, jmax
-              do k = kmin, kmax
-                if (exchangeE) then
-                  send_fld(mpi_offset + send_cnt + 0) = ex(i, j, k)
-                  send_fld(mpi_offset + send_cnt + 1) = ey(i, j, k)
-                  send_fld(mpi_offset + send_cnt + 2) = ez(i, j, k)
-                  send_cnt = send_cnt + 3
-                end if
-                if (exchangeB) then
-                  send_fld(mpi_offset + send_cnt + 0) = bx(i, j, k)
-                  send_fld(mpi_offset + send_cnt + 1) = by(i, j, k)
-                  send_fld(mpi_offset + send_cnt + 2) = bz(i, j, k)
-                  send_cnt = send_cnt + 3
-                end if
-              end do
+              if (exchangeE) then
+                send_fld(loc:loc + idiff) = ex(imin:imax, j, k)
+                loc = loc + idiff + 1
+                send_fld(loc:loc + idiff) = ey(imin:imax, j, k)
+                loc = loc + idiff + 1
+                send_fld(loc:loc + idiff) = ez(imin:imax, j, k)
+                loc = loc + idiff + 1
+                send_cnt = send_cnt + 3 * (idiff + 1)
+              end if
+              if (exchangeB) then
+                send_fld(loc:loc + idiff) = bx(imin:imax, j, k)
+                loc = loc + idiff + 1
+                send_fld(loc:loc + idiff) = by(imin:imax, j, k)
+                loc = loc + idiff + 1
+                send_fld(loc:loc + idiff) = bz(imin:imax, j, k)
+                loc = loc + idiff + 1
+                send_cnt = send_cnt + 3 * (idiff + 1)
+              end if
             end do
           end do
           send_cnt = send_cnt - 1
@@ -387,13 +398,13 @@ contains
     do while (.not. quit_loop)
       quit_loop = .true.
       cntr = 0
-      do ind1 = -1, 1
+      do ind3 = -1, 1
         do ind2 = -1, 1
-          do ind3 = -1, 1
+          do ind1 = -1, 1
             if ((ind1 .eq. 0) .and. (ind2 .eq. 0) .and. (ind3 .eq. 0)) cycle
 #ifdef oneD
             if ((ind2 .ne. 0) .or. (ind3 .ne. 0)) cycle
-#elif twoD
+#elif defined(twoD)
             if (ind3 .ne. 0) cycle
 #endif
             if (.not. associated(this_meshblock % ptr % neighbor(ind1, ind2, ind3) % ptr)) cycle
@@ -443,28 +454,31 @@ contains
 #ifdef oneD
                 jmin = 0; jmax = 0
                 kmin = 0; kmax = 0
-#elif twoD
+#elif defined(twoD)
                 kmin = 0; kmax = 0
 #endif
 
                 ! copy `recv_fld` to ghost cells
                 send_cnt = 1
-                do i = imin, imax
+                idiff = imax - imin
+                do k = kmin, kmax
                   do j = jmin, jmax
-                    do k = kmin, kmax
-                      if (exchangeE) then
-                        ex(i, j, k) = recv_fld(send_cnt + 0)
-                        ey(i, j, k) = recv_fld(send_cnt + 1)
-                        ez(i, j, k) = recv_fld(send_cnt + 2)
-                        send_cnt = send_cnt + 3
-                      end if
-                      if (exchangeB) then
-                        bx(i, j, k) = recv_fld(send_cnt + 0)
-                        by(i, j, k) = recv_fld(send_cnt + 1)
-                        bz(i, j, k) = recv_fld(send_cnt + 2)
-                        send_cnt = send_cnt + 3
-                      end if
-                    end do
+                    if (exchangeE) then
+                      ex(imin:imax, j, k) = recv_fld(send_cnt:send_cnt + idiff)
+                      send_cnt = send_cnt + idiff + 1
+                      ey(imin:imax, j, k) = recv_fld(send_cnt:send_cnt + idiff)
+                      send_cnt = send_cnt + idiff + 1
+                      ez(imin:imax, j, k) = recv_fld(send_cnt:send_cnt + idiff)
+                      send_cnt = send_cnt + idiff + 1
+                    end if
+                    if (exchangeB) then
+                      bx(imin:imax, j, k) = recv_fld(send_cnt:send_cnt + idiff)
+                      send_cnt = send_cnt + idiff + 1
+                      by(imin:imax, j, k) = recv_fld(send_cnt:send_cnt + idiff)
+                      send_cnt = send_cnt + idiff + 1
+                      bz(imin:imax, j, k) = recv_fld(send_cnt:send_cnt + idiff)
+                      send_cnt = send_cnt + idiff + 1
+                    end if
                   end do
                 end do
 

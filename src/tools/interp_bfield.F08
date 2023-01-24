@@ -17,7 +17,7 @@
   c0 = 0.5 * (bz(lind - 1, 0, 0) + bz(lind, 0, 0))
   c1 = 0.5 * (bz(lind, 0, 0) + bz(lind + 1, 0, 0))
   bz0 = c0 * (1 - dx) + c1 * dx
-#elif twoD
+#elif defined(twoD)
   !b_x
   c000 = 0.5 * (bx(lind, -NGHOST, 0) + bx(lind - iy, -NGHOST, 0))
   c100 = 0.5 * (bx(lind + 1, -NGHOST, 0) + bx(lind + 1 - iy, -NGHOST, 0))
@@ -48,7 +48,7 @@
   c00 = c000 * (1 - dx) + c100 * dx
   c10 = c010 * (1 - dx) + c110 * dx
   bz0 = c00 * (1 - dy) + c10 * dy
-#elif threeD
+#elif defined(threeD)
   !b_x
   c000 = 0.25 * (bx(lind, -NGHOST, -NGHOST) + bx(lind - iy, -NGHOST, -NGHOST) + &
                  bx(lind - iz, -NGHOST, -NGHOST) + bx(lind - iy - iz, -NGHOST, -NGHOST))

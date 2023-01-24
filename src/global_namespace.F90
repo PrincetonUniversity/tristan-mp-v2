@@ -20,7 +20,7 @@ module m_globalnamespace
   integer, parameter :: sprec = kind(1.0e0)
   integer, parameter :: UNIT_input = 10, UNIT_output = 20, UNIT_history = 30, UNIT_diag = 40, UNIT_warn = 80
   integer, parameter :: UNIT_params = 50, UNIT_usrout = 90
-  integer, parameter :: UNIT_restart_fld = 60, UNIT_restart_prtl = 70
+  integer, parameter :: UNIT_restart = 60
 
   ! algorithm specific parameters
   real :: CC, CCINV, CORR
@@ -33,17 +33,22 @@ module m_globalnamespace
 
   ! simulation parameters
   integer :: start_timestep = 0, final_timestep, warning_count = 0
-  logical :: resize_tiles
-  integer :: min_tile_nprt = 100, max_buffsize = 100
+  logical :: resize_tiles, shrink_tiles
+  integer :: min_tile_nprt = 100, max_buffsize = 32
+  integer :: t_max_check_interval = 10
   character(len=STR_MAX) :: input_file_name = 'input', &
                             output_dir_name = 'output', &
+                            output_dir_spec = 'output/spec', &
+                            output_dir_flds = 'output/flds', &
+                            output_dir_prtl = 'output/prtl', &
                             slice_dir_name = 'slices', &
                             restart_dir_name = 'restart', &
-                            restart_from = 'restart/step_00000', &
+                            restart_from = 'restart/step_000000', &
                             diag_file_name = 'diag.log', &
                             warn_file_name = 'warn.log'
 
   integer :: nfilter
+  real(kind=8) :: wall_t_max
 
   ! mpi variables
   integer :: mpi_rank, mpi_size, mpi_statsize
@@ -72,3 +77,4 @@ contains
     unit_ch = CC**2 / (ppc0 * c_omp**2)
   end subroutine renormalizeUnits
 end module m_globalnamespace
+

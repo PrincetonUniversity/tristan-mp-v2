@@ -153,6 +153,8 @@ contains
 
   end subroutine userParticleBoundaryConditions
 
+#include "optional.F"
+
   subroutine userFieldBoundaryConditions(step, updateE, updateB)
     implicit none
     integer, optional, intent(in) :: step

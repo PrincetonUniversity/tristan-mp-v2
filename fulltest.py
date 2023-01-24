@@ -16,7 +16,7 @@ def dir_path(string):
 
 
 def clustername(string):
-    if string in ['perseus', 'stellar']:
+    if string in ['perseus', 'stellar', 'ginsburg']:
         return string
     else:
         raise ValueError(string)
@@ -57,9 +57,13 @@ if (options.cluster == 'perseus'):
                'intel-mpi/intel/2017.5/64',
                'hdf5/intel-17.0/intel-mpi/1.10.0']
 elif (options.cluster == 'stellar'):
-    modules = ['module load intel/2021.1.2',
-               'module load intel-mpi/intel/2021.1.1',
-               'module load hdf5/intel-2021.1/intel-mpi/1.10.6']
+    modules = ['intel/2021.1.2',
+               'intel-mpi/intel/2021.1.1',
+               'hdf5/intel-2021.1/intel-mpi/1.10.6']
+elif (options.cluster == 'ginsburg'):
+    modules = ['intel-parallel-studio/2020',
+               'hdf5p/1.10.7',
+               'mpich/ge/gcc/64/3.3.2']
 
 # global variables
 outdir = options.path
@@ -105,7 +109,7 @@ class TwoStream(Simulation):
         rate = 0.5 * (0.5)**0.5 / \
             (self.params['problem']['shift_gamma'])**(1.5)
         time = hist['time'] * omegap0
-        E2 = hist['E^2'] / hist['Etot'][0]
+        E2 = hist['Ex^2'] / hist['Etot'][0]
         ax.plot(time, E2, label='sim')
         xs = np.linspace(10, 40, 10)
         ys = np.exp(2 * rate * xs)
@@ -139,7 +143,7 @@ class PlasmaOsc(Simulation):
         exs = []
         steps = np.arange(50)
         for step in steps:
-            flds = isolde.getFields(self.path + '/output/flds.tot.%05d' % step)
+            flds = isolde.getFields(self.path + '/output/flds/flds.tot.%05d' % step)
             exs.append(flds['ex'][0, 0, int(
                 self.params['grid']['mx0'] / 4)] / 1e-4)
         ax.plot(steps * self.params['output']['interval'] /
@@ -169,7 +173,7 @@ class Weibel(Simulation):
         ax.set_title(self.jobid)
         ax.grid(False)
         from matplotlib.animation import FuncAnimation
-        flds = isolde.getFields(self.path + '/output/flds.tot.%05d' % 0)
+        flds = isolde.getFields(self.path + '/output/flds/flds.tot.%05d' % 0)
         xmin = flds['xx'][0].min() / self.params['plasma']['c_omp']
         xmax = flds['xx'][0].max() / self.params['plasma']['c_omp']
         ymin = flds['yy'][0].min() / self.params['plasma']['c_omp']
@@ -187,7 +191,7 @@ class Weibel(Simulation):
             return im, txt1, txt2,
 
         def animate(i):
-            flds = isolde.getFields(self.path + '/output/flds.tot.%05d' % i)
+            flds = isolde.getFields(self.path + '/output/flds/flds.tot.%05d' % i)
             im.set_data(flds['bz'][0])
             txt2.set_text(r'$t\omega_{{\rm p0}}={{{}}}$'.format(
                 i * self.params['output']['interval'] * 0.45 / self.params['plasma']['c_omp']))
@@ -223,7 +227,7 @@ class Merging(Simulation):
                 np.sum(prtls['2']['w'] * prtls['2']['wei'])
             return (en, mx, my, mz)
         energy0, momx0, momy0, momz0 = getMomenta(
-            isolde.getParticles(self.path + '/output/prtl.tot.%05d' % 0))
+            isolde.getParticles(self.path + '/output/prtl/prtl.tot.%05d' % 0))
 
         def template(prtls):
             energy1, momx1, momy1, momz1 = getMomenta(prtls)
@@ -233,7 +237,7 @@ class Merging(Simulation):
                 '\nmomY [err%]: {:.3f} [{:.4f}%]'.format(momy1, np.abs((momy1 - momy0) * 100 / momy0)) + \
                 '\nmomZ [err%]: {:.3f} [{:.4f}%]'.format(
                 momz1, np.abs((momz1 - momz0) * 100 / (momz0 + 1e-10)))
-            sc1 = ax.scatter([-100], [-100], fc='blue', label='lecs', zorder=2)
+        sc1 = ax.scatter([-100], [-100], fc='blue', label='lecs', zorder=2)
         sc2 = ax.scatter([-100], [-100], fc='red', label='ions', zorder=2)
         lgd = ax.legend(loc='lower right')
         major_ticks = np.arange(
@@ -270,8 +274,8 @@ class Merging(Simulation):
             ax.set_ylabel(r'$y$')
             ax.set_title(self.jobid)
             prtls = isolde.getParticles(
-                self.path + '/output/prtl.tot.%05d' % 0)
-            flds = isolde.getFields(self.path + '/output/flds.tot.%05d' % 0)
+                self.path + '/output/prtl/prtl.tot.%05d' % 0)
+            flds = isolde.getFields(self.path + '/output/flds/flds.tot.%05d' % 0)
             sc1.set_offsets(np.array([prtls['1']['x'], prtls['1']['y']]).T)
             sc2.set_offsets(np.array([prtls['2']['x'], prtls['2']['y']]).T)
             im.set_data(flds['divE'][0])
@@ -281,8 +285,8 @@ class Merging(Simulation):
 
         def animate(i):
             prtls = isolde.getParticles(
-                self.path + '/output/prtl.tot.%05d' % i)
-            flds = isolde.getFields(self.path + '/output/flds.tot.%05d' % i)
+                self.path + '/output/prtl/prtl.tot.%05d' % i)
+            flds = isolde.getFields(self.path + '/output/flds/flds.tot.%05d' % i)
             sc1.set_offsets(np.array([prtls['1']['x'], prtls['1']['y']]).T)
             sc2.set_offsets(np.array([prtls['2']['x'], prtls['2']['y']]).T)
             im.set_data(flds['divE'][0])
@@ -329,8 +333,8 @@ class AdaptiveLB(Simulation):
 
         def draw(i):
             prtls = isolde.getParticles(
-                self.path + '/output/prtl.tot.%05d' % i)
-            flds = isolde.getFields(self.path + '/output/flds.tot.%05d' % i)
+                self.path + '/output/prtl/prtl.tot.%05d' % i)
+            flds = isolde.getFields(self.path + '/output/flds/flds.tot.%05d' % i)
             dom = isolde.getDomains(self.path + '/output/domain.%05d' % i)
             # xz
             ims = []

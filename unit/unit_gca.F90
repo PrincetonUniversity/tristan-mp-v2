@@ -213,4 +213,6 @@ contains
 
   !--- auxiliary functions ------------------------------------!
   !............................................................!
+
+#include "optional.F"
 end module m_userfile

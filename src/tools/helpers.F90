@@ -5,6 +5,7 @@ module m_helpers
   use m_domain
   use m_particles
   use m_fields
+  use m_qednamespace
   implicit none
 contains
   logical function numbersAreClose(number1, number2)
@@ -33,9 +34,9 @@ contains
     integer :: glob_nprt
     do s = 1, nspec
       nprt = 0
-      do ti = 1, species(s) % tile_nx
+      do tk = 1, species(s) % tile_nz
         do tj = 1, species(s) % tile_ny
-          do tk = 1, species(s) % tile_nz
+          do ti = 1, species(s) % tile_nx
             nprt = nprt + species(s) % prtl_tile(ti, tj, tk) % npart_sp
           end do
         end do
@@ -85,20 +86,20 @@ contains
 #endif
       if (present(containedQ)) then
 #ifdef oneD
-        containedQ = ((x_glob .ge. REAL(this_meshblock % ptr % x0)) .and. &
-                      (x_glob .lt. REAL(this_meshblock % ptr % x0 + this_meshblock % ptr % sx)))
-#elif twoD
-        containedQ = ((x_glob .ge. REAL(this_meshblock % ptr % x0)) .and. &
-                      (x_glob .lt. REAL(this_meshblock % ptr % x0 + this_meshblock % ptr % sx)) .and. &
-                      (y_glob .ge. REAL(this_meshblock % ptr % y0)) .and. &
-                      (y_glob .lt. REAL(this_meshblock % ptr % y0 + this_meshblock % ptr % sy)))
-#elif threeD
-        containedQ = ((x_glob .ge. REAL(this_meshblock % ptr % x0)) .and. &
-                      (x_glob .lt. REAL(this_meshblock % ptr % x0 + this_meshblock % ptr % sx)) .and. &
-                      (y_glob .ge. REAL(this_meshblock % ptr % y0)) .and. &
-                      (y_glob .lt. REAL(this_meshblock % ptr % y0 + this_meshblock % ptr % sy)) .and. &
-                      (z_glob .ge. REAL(this_meshblock % ptr % z0)) .and. &
-                      (z_glob .lt. REAL(this_meshblock % ptr % z0 + this_meshblock % ptr % sz)))
+        containedQ = ((x_loc .ge. 0) .and. &
+                      (x_loc .lt. REAL(this_meshblock % ptr % sx)))
+#elif defined(twoD)
+        containedQ = ((x_loc .ge. 0) .and. &
+                      (x_loc .lt. REAL(this_meshblock % ptr % sx)) .and. &
+                      (y_loc .ge. 0) .and. &
+                      (y_loc .lt. REAL(this_meshblock % ptr % sy)))
+#elif defined(threeD)
+        containedQ = ((x_loc .ge. 0) .and. &
+                      (x_loc .lt. REAL(this_meshblock % ptr % sx)) .and. &
+                      (y_loc .ge. 0) .and. &
+                      (y_loc .lt. REAL(this_meshblock % ptr % sy)) .and. &
+                      (z_loc .ge. 0) .and. &
+                      (z_loc .lt. REAL(this_meshblock % ptr % sz)))
 #endif
       end if
     end if
@@ -198,9 +199,9 @@ contains
     integer :: rnk
     integer :: ind1, ind2, ind3, inds(3)
     do rnk = 0, mpi_size - 1
-      do ind1 = -1, 1
+      do ind3 = -1, 1
         do ind2 = -1, 1
-          do ind3 = -1, 1
+          do ind1 = -1, 1
             inds(1) = ind1; inds(2) = ind2; inds(3) = ind3
             call assignNeighbor(rnk, inds, mblocks)
           end do
@@ -232,13 +233,13 @@ contains
     integer :: ind1, ind2, ind3
     integer :: cntr
     cntr = 0
-    do ind1 = -1, 1
+    do ind3 = -1, 1
       do ind2 = -1, 1
-        do ind3 = -1, 1
+        do ind1 = -1, 1
           if ((ind1 .eq. 0) .and. (ind2 .eq. 0) .and. (ind3 .eq. 0)) cycle
 #ifdef oneD
           if ((ind2 .ne. 0) .or. (ind3 .ne. 0)) cycle
-#elif twoD
+#elif defined(twoD)
           if (ind3 .ne. 0) cycle
 #endif
           if (.not. associated(this_meshblock % ptr % neighbor(ind1, ind2, ind3) % ptr)) cycle
@@ -277,9 +278,9 @@ contains
 
 #ifdef oneD
     pow = 1_2
-#elif twoD
+#elif defined(twoD)
     pow = 2_2
-#elif threeD
+#elif defined(threeD)
     pow = 3_2
 #endif
 
@@ -297,9 +298,9 @@ contains
       lg_arr(:, :, :) = 0
     end if
 
-    do ti = 1, species(s) % tile_nx
+    do tk = 1, species(s) % tile_nz
       do tj = 1, species(s) % tile_ny
-        do tk = 1, species(s) % tile_nz
+        do ti = 1, species(s) % tile_nx
           pt_xi => species(s) % prtl_tile(ti, tj, tk) % xi
           pt_yi => species(s) % prtl_tile(ti, tj, tk) % yi
           pt_zi => species(s) % prtl_tile(ti, tj, tk) % zi
@@ -338,6 +339,94 @@ contains
     end do
   end subroutine computeDensity
 
+  subroutine computePrtCurr(s, component, reset, ds)
+    ! DEP_PRT [particle-dependent]
+    implicit none
+    integer, intent(in) :: s, component
+    logical, intent(in) :: reset
+    integer, optional, intent(in) :: ds
+    integer :: p, ti, tj, tk
+    integer(kind=2), pointer, contiguous :: pt_xi(:), pt_yi(:), pt_zi(:)
+    real, pointer, contiguous :: pt_u(:), pt_v(:), pt_w(:), pt_wei(:)
+    integer(kind=2) :: i, j, k
+    integer :: i1, i2, j1, j2, k1, k2, ds_
+    integer :: pow
+    logical :: charged
+    real :: comp
+    real :: contrib
+
+    if (.not. present(ds)) then
+      ds_ = 2
+    else
+      ds_ = ds
+    end if
+
+#ifdef oneD
+    pow = 1
+#elif defined(twoD)
+    pow = 2
+#elif defined(threeD)
+    pow = 3
+#endif
+
+    contrib = species(s) % ch_sp / (2.0 * REAL(ds_) + 1.0)**pow
+
+    if (reset) then
+      lg_arr(:, :, :) = 0
+    end if
+    do tk = 1, species(s) % tile_nz
+      do tj = 1, species(s) % tile_ny
+        do ti = 1, species(s) % tile_nx
+          pt_xi => species(s) % prtl_tile(ti, tj, tk) % xi
+          pt_yi => species(s) % prtl_tile(ti, tj, tk) % yi
+          pt_zi => species(s) % prtl_tile(ti, tj, tk) % zi
+          pt_wei => species(s) % prtl_tile(ti, tj, tk) % weight
+          pt_u => species(s) % prtl_tile(ti, tj, tk) % u
+          pt_v => species(s) % prtl_tile(ti, tj, tk) % v
+          pt_w => species(s) % prtl_tile(ti, tj, tk) % w
+          do p = 1, species(s) % prtl_tile(ti, tj, tk) % npart_sp
+            i = pt_xi(p); j = pt_yi(p); k = pt_zi(p)
+            if (component .eq. 1) then
+              comp = pt_u(p) / sqrt(1.0 + pt_u(p)**2 + pt_v(p)**2 + pt_w(p)**2)
+            else if (component .eq. 2) then
+              comp = pt_v(p) / sqrt(1.0 + pt_u(p)**2 + pt_v(p)**2 + pt_w(p)**2)
+            else if (component .eq. 3) then
+              comp = pt_w(p) / sqrt(1.0 + pt_u(p)**2 + pt_v(p)**2 + pt_w(p)**2)
+            end if
+
+            i1 = 0; i2 = 0
+            j1 = 0; j2 = 0
+            k1 = 0; k2 = 0
+#if defined(oneD) || defined (twoD) || defined (threeD)
+            i1 = max(i - ds_, -NGHOST)
+            i2 = min(i + ds_, this_meshblock % ptr % sx + NGHOST - 1)
+#endif
+#if defined (twoD) || defined (threeD)
+            j1 = max(j - ds_, -NGHOST)
+            j2 = min(j + ds_, this_meshblock % ptr % sy + NGHOST - 1)
+#endif
+#if defined (threeD)
+            k1 = max(k - ds_, -NGHOST)
+            k2 = min(k + ds_, this_meshblock % ptr % sz + NGHOST - 1)
+#endif
+
+            do k = k1, k2
+              do j = j1, j2
+                do i = i1, i2
+                  lg_arr(i, j, k) = lg_arr(i, j, k) + comp * pt_wei(p) * contrib
+                end do
+              end do
+            end do
+
+          end do
+          pt_xi => null(); pt_yi => null(); pt_zi => null()
+          pt_u => null(); pt_v => null(); pt_w => null()
+          pt_wei => null()
+        end do
+      end do
+    end do
+  end subroutine computePrtCurr
+
   subroutine computeMomentum(s, component, reset, ds)
     ! DEP_PRT [particle-dependent]
     implicit none
@@ -360,9 +449,9 @@ contains
 
 #ifdef oneD
     pow = 1_2
-#elif twoD
+#elif defined(twoD)
     pow = 2_2
-#elif threeD
+#elif defined(threeD)
     pow = 3_2
 #endif
 
@@ -376,9 +465,9 @@ contains
     if (reset) then
       lg_arr(:, :, :) = 0
     end if
-    do ti = 1, species(s) % tile_nx
+    do tk = 1, species(s) % tile_nz
       do tj = 1, species(s) % tile_ny
-        do tk = 1, species(s) % tile_nz
+        do ti = 1, species(s) % tile_nx
           pt_xi => species(s) % prtl_tile(ti, tj, tk) % xi
           pt_yi => species(s) % prtl_tile(ti, tj, tk) % yi
           pt_zi => species(s) % prtl_tile(ti, tj, tk) % zi
@@ -400,6 +489,9 @@ contains
               comp = pt_v(p)
             else if (component .eq. 3) then
               comp = pt_w(p)
+            else if (component .eq. 4) then
+              comp = pt_u(p)**2 + pt_v(p)**2 + pt_w(p)**2  ! momentum squared
+              if (massive) comp = comp * species(s) % m_sp
             end if
 
             i1 = 0; i2 = 0
@@ -461,9 +553,9 @@ contains
 
 #ifdef oneD
     pow = 1
-#elif twoD
+#elif defined(twoD)
     pow = 2
-#elif threeD
+#elif defined(threeD)
     pow = 3
 #endif
 
@@ -477,9 +569,9 @@ contains
     if (reset) then
       lg_arr(:, :, :) = 0
     end if
-    do ti = 1, species(s) % tile_nx
+    do tk = 1, species(s) % tile_nz
       do tj = 1, species(s) % tile_ny
-        do tk = 1, species(s) % tile_nz
+        do ti = 1, species(s) % tile_nx
           pt_xi => species(s) % prtl_tile(ti, tj, tk) % xi
           pt_yi => species(s) % prtl_tile(ti, tj, tk) % yi
           pt_zi => species(s) % prtl_tile(ti, tj, tk) % zi
@@ -569,9 +661,9 @@ contains
 
 #ifdef oneD
     pow = 1_2
-#elif twoD
+#elif defined(twoD)
     pow = 2_2
-#elif threeD
+#elif defined(threeD)
     pow = 3_2
 #endif
 
@@ -584,9 +676,9 @@ contains
       ! this factor takes into account smoothing and mass of the species
       contrib = species(s) % m_sp / (2.0 * REAL(ds_) + 1.0)**pow
 
-      do ti = 1, species(s) % tile_nx
+      do tk = 1, species(s) % tile_nz
         do tj = 1, species(s) % tile_ny
-          do tk = 1, species(s) % tile_nz
+          do ti = 1, species(s) % tile_nx
             pt_xi => species(s) % prtl_tile(ti, tj, tk) % xi
             pt_yi => species(s) % prtl_tile(ti, tj, tk) % yi
             pt_zi => species(s) % prtl_tile(ti, tj, tk) % zi
@@ -658,9 +750,9 @@ contains
 
 #ifdef oneD
     pow = 1_2
-#elif twoD
+#elif defined(twoD)
     pow = 2_2
-#elif threeD
+#elif defined(threeD)
     pow = 3_2
 #endif
 
@@ -673,9 +765,9 @@ contains
       ! this factor takes into account smoothing and mass of the species
       contrib = species(s) % m_sp / (2.0 * REAL(ds_) + 1.0)**pow
 
-      do ti = 1, species(s) % tile_nx
+      do tk = 1, species(s) % tile_nz
         do tj = 1, species(s) % tile_ny
-          do tk = 1, species(s) % tile_nz
+          do ti = 1, species(s) % tile_nx
             pt_xi => species(s) % prtl_tile(ti, tj, tk) % xi
             pt_yi => species(s) % prtl_tile(ti, tj, tk) % yi
             pt_zi => species(s) % prtl_tile(ti, tj, tk) % zi
@@ -735,9 +827,9 @@ contains
 
 #ifdef oneD
     pow = 1_2
-#elif twoD
+#elif defined(twoD)
     pow = 2_2
-#elif threeD
+#elif defined(threeD)
     pow = 3_2
 #endif
 
@@ -746,9 +838,9 @@ contains
     if (reset) then
       lg_arr(:, :, :) = 0
     end if
-    do ti = 1, species(s) % tile_nx
+    do tk = 1, species(s) % tile_nz
       do tj = 1, species(s) % tile_ny
-        do tk = 1, species(s) % tile_nz
+        do ti = 1, species(s) % tile_nx
           pt_xi => species(s) % prtl_tile(ti, tj, tk) % xi
           pt_yi => species(s) % prtl_tile(ti, tj, tk) % yi
           pt_zi => species(s) % prtl_tile(ti, tj, tk) % zi
@@ -785,272 +877,272 @@ contains
 
   subroutine interpFromEdges(dx, dy, dz, i, j, k, &
                              fx, fy, fz, &
-                             intfx, intfy, intfz)
+                             intfx, intfy, intfz, comp)
     implicit none
     integer(kind=2), intent(in) :: i, j, k
     real, intent(in) :: dx, dy, dz
-#ifdef oneD
-    real, intent(in) :: fx(-NGHOST:this_meshblock % ptr % sx - 1 + NGHOST, 0:0, 0:0)
-    real, intent(in) :: fy(-NGHOST:this_meshblock % ptr % sx - 1 + NGHOST, 0:0, 0:0)
-    real, intent(in) :: fz(-NGHOST:this_meshblock % ptr % sx - 1 + NGHOST, 0:0, 0:0)
-#elif twoD
-    real, intent(in) :: fx(-NGHOST:this_meshblock % ptr % sx - 1 + NGHOST, &
-                           -NGHOST:this_meshblock % ptr % sy - 1 + NGHOST, 0:0)
-    real, intent(in) :: fy(-NGHOST:this_meshblock % ptr % sx - 1 + NGHOST, &
-                           -NGHOST:this_meshblock % ptr % sy - 1 + NGHOST, 0:0)
-    real, intent(in) :: fz(-NGHOST:this_meshblock % ptr % sx - 1 + NGHOST, &
-                           -NGHOST:this_meshblock % ptr % sy - 1 + NGHOST, 0:0)
-#elif threeD
-    real, intent(in) :: fx(-NGHOST:this_meshblock % ptr % sx - 1 + NGHOST, &
-                           -NGHOST:this_meshblock % ptr % sy - 1 + NGHOST, &
-                           -NGHOST:this_meshblock % ptr % sz - 1 + NGHOST)
-    real, intent(in) :: fy(-NGHOST:this_meshblock % ptr % sx - 1 + NGHOST, &
-                           -NGHOST:this_meshblock % ptr % sy - 1 + NGHOST, &
-                           -NGHOST:this_meshblock % ptr % sz - 1 + NGHOST)
-    real, intent(in) :: fz(-NGHOST:this_meshblock % ptr % sx - 1 + NGHOST, &
-                           -NGHOST:this_meshblock % ptr % sy - 1 + NGHOST, &
-                           -NGHOST:this_meshblock % ptr % sz - 1 + NGHOST)
-#endif
+    real, intent(in) :: fx(this_meshblock % ptr % i1:this_meshblock % ptr % i2, &
+                           this_meshblock % ptr % j1:this_meshblock % ptr % j2, &
+                           this_meshblock % ptr % k1:this_meshblock % ptr % k2)
+    real, intent(in) :: fy(this_meshblock % ptr % i1:this_meshblock % ptr % i2, &
+                           this_meshblock % ptr % j1:this_meshblock % ptr % j2, &
+                           this_meshblock % ptr % k1:this_meshblock % ptr % k2)
+    real, intent(in) :: fz(this_meshblock % ptr % i1:this_meshblock % ptr % i2, &
+                           this_meshblock % ptr % j1:this_meshblock % ptr % j2, &
+                           this_meshblock % ptr % k1:this_meshblock % ptr % k2)
     real, intent(out) :: intfx, intfy, intfz
     real :: c000, c100, c001, c101, c010, c110, c011, c111, &
             c00, c01, c10, c11, c0, c1
+    integer, optional, intent(in) :: comp
+    integer :: comp_
+    if (.not. present(comp)) then
+      comp_ = 0
+    else
+      comp_ = comp
+    end if
     ! f_x
+    if ((comp_ .eq. 1) .or. (comp_ .le. 0)) then
 #ifdef oneD
-    c0 = 0.5 * (fx(i, j, k) + fx(i - 1, j, k))
-    c1 = 0.5 * (fx(i, j, k) + fx(i + 1, j, k))
-    intfx = c0 * (1 - dx) + c1 * dx
+      c0 = 0.5 * (fx(i, j, k) + fx(i - 1, j, k))
+      c1 = 0.5 * (fx(i, j, k) + fx(i + 1, j, k))
+      intfx = c0 * (1 - dx) + c1 * dx
 #elif defined(twoD) || defined(threeD)
-    c000 = 0.5 * (fx(i, j, k) + fx(i - 1, j, k))
-    c100 = 0.5 * (fx(i, j, k) + fx(i + 1, j, k))
-    c010 = 0.5 * (fx(i, j + 1, k) + fx(i - 1, j + 1, k))
-    c110 = 0.5 * (fx(i, j + 1, k) + fx(i + 1, j + 1, k))
-    c00 = c000 * (1 - dx) + c100 * dx
-    c10 = c010 * (1 - dx) + c110 * dx
-    c0 = c00 * (1 - dy) + c10 * dy
+      c000 = 0.5 * (fx(i, j, k) + fx(i - 1, j, k))
+      c100 = 0.5 * (fx(i, j, k) + fx(i + 1, j, k))
+      c010 = 0.5 * (fx(i, j + 1, k) + fx(i - 1, j + 1, k))
+      c110 = 0.5 * (fx(i, j + 1, k) + fx(i + 1, j + 1, k))
+      c00 = c000 * (1 - dx) + c100 * dx
+      c10 = c010 * (1 - dx) + c110 * dx
+      c0 = c00 * (1 - dy) + c10 * dy
 #ifdef twoD
-    intfx = c0
+      intfx = c0
 #else
-    c001 = 0.5 * (fx(i, j, k + 1) + fx(i - 1, j, k + 1))
-    c101 = 0.5 * (fx(i, j, k + 1) + fx(i + 1, j, k + 1))
-    c011 = 0.5 * (fx(i, j + 1, k + 1) + fx(i - 1, j + 1, k + 1))
-    c111 = 0.5 * (fx(i, j + 1, k + 1) + fx(i + 1, j + 1, k + 1))
-    c01 = c001 * (1 - dx) + c101 * dx
-    c11 = c011 * (1 - dx) + c111 * dx
-    c1 = c01 * (1 - dy) + c11 * dy
-    intfx = c0 * (1 - dz) + c1 * dz
+      c001 = 0.5 * (fx(i, j, k + 1) + fx(i - 1, j, k + 1))
+      c101 = 0.5 * (fx(i, j, k + 1) + fx(i + 1, j, k + 1))
+      c011 = 0.5 * (fx(i, j + 1, k + 1) + fx(i - 1, j + 1, k + 1))
+      c111 = 0.5 * (fx(i, j + 1, k + 1) + fx(i + 1, j + 1, k + 1))
+      c01 = c001 * (1 - dx) + c101 * dx
+      c11 = c011 * (1 - dx) + c111 * dx
+      c1 = c01 * (1 - dy) + c11 * dy
+      intfx = c0 * (1 - dz) + c1 * dz
 #endif
 #endif
+    end if
 
     ! f_y
+    if ((comp_ .eq. 2) .or. (comp_ .le. 0)) then
 #ifdef oneD
-    c0 = 0.5 * (fy(i, j, k) + fy(i, j, k))
-    c1 = 0.5 * (fy(i + 1, j, k) + fy(i + 1, j, k))
-    intfy = c0 * (1 - dx) + c1 * dx
+      c0 = 0.5 * (fy(i, j, k) + fy(i, j, k))
+      c1 = 0.5 * (fy(i + 1, j, k) + fy(i + 1, j, k))
+      intfy = c0 * (1 - dx) + c1 * dx
 #elif defined(twoD) || defined(threeD)
-    c000 = 0.5 * (fy(i, j, k) + fy(i, j - 1, k))
-    c100 = 0.5 * (fy(i + 1, j, k) + fy(i + 1, j - 1, k))
-    c010 = 0.5 * (fy(i, j, k) + fy(i, j + 1, k))
-    c110 = 0.5 * (fy(i + 1, j, k) + fy(i + 1, j + 1, k))
-    c00 = c000 * (1 - dx) + c100 * dx
-    c10 = c010 * (1 - dx) + c110 * dx
-    c0 = c00 * (1 - dy) + c10 * dy
+      c000 = 0.5 * (fy(i, j, k) + fy(i, j - 1, k))
+      c100 = 0.5 * (fy(i + 1, j, k) + fy(i + 1, j - 1, k))
+      c010 = 0.5 * (fy(i, j, k) + fy(i, j + 1, k))
+      c110 = 0.5 * (fy(i + 1, j, k) + fy(i + 1, j + 1, k))
+      c00 = c000 * (1 - dx) + c100 * dx
+      c10 = c010 * (1 - dx) + c110 * dx
+      c0 = c00 * (1 - dy) + c10 * dy
 #ifdef twoD
-    intfy = c0
+      intfy = c0
 #else
-    c001 = 0.5 * (fy(i, j, k + 1) + fy(i, j - 1, k + 1))
-    c101 = 0.5 * (fy(i + 1, j, k + 1) + fy(i + 1, j - 1, k + 1))
-    c011 = 0.5 * (fy(i, j, k + 1) + fy(i, j + 1, k + 1))
-    c111 = 0.5 * (fy(i + 1, j, k + 1) + fy(i + 1, j + 1, k + 1))
-    c01 = c001 * (1 - dx) + c101 * dx
-    c11 = c011 * (1 - dx) + c111 * dx
-    c1 = c01 * (1 - dy) + c11 * dy
-    intfy = c0 * (1 - dz) + c1 * dz
+      c001 = 0.5 * (fy(i, j, k + 1) + fy(i, j - 1, k + 1))
+      c101 = 0.5 * (fy(i + 1, j, k + 1) + fy(i + 1, j - 1, k + 1))
+      c011 = 0.5 * (fy(i, j, k + 1) + fy(i, j + 1, k + 1))
+      c111 = 0.5 * (fy(i + 1, j, k + 1) + fy(i + 1, j + 1, k + 1))
+      c01 = c001 * (1 - dx) + c101 * dx
+      c11 = c011 * (1 - dx) + c111 * dx
+      c1 = c01 * (1 - dy) + c11 * dy
+      intfy = c0 * (1 - dz) + c1 * dz
 #endif
 #endif
+    end if
 
     ! f_z
+    if ((comp_ .eq. 3) .or. (comp_ .le. 0)) then
 #ifdef oneD
-    c0 = fz(i, j, k)
-    c1 = fz(i + 1, j, k)
-    intfz = c0 * (1 - dx) + c1 * dx
-#elif twoD
-    c000 = fz(i, j, k)
-    c100 = fz(i + 1, j, k)
-    c010 = fz(i, j + 1, k)
-    c110 = fz(i + 1, j + 1, k)
-    c00 = c000 * (1 - dx) + c100 * dx
-    c10 = c010 * (1 - dx) + c110 * dx
-    intfz = c00 * (1 - dy) + c10 * dy
-#elif threeD
-    c000 = 0.5 * (fz(i, j, k) + fz(i, j, k - 1))
-    c100 = 0.5 * (fz(i + 1, j, k) + fz(i + 1, j, k - 1))
-    c010 = 0.5 * (fz(i, j + 1, k) + fz(i, j + 1, k - 1))
-    c110 = 0.5 * (fz(i + 1, j + 1, k) + fz(i + 1, j + 1, k - 1))
-    c001 = 0.5 * (fz(i, j, k) + fz(i, j, k + 1))
-    c101 = 0.5 * (fz(i + 1, j, k) + fz(i + 1, j, k + 1))
-    c011 = 0.5 * (fz(i, j + 1, k) + fz(i, j + 1, k + 1))
-    c111 = 0.5 * (fz(i + 1, j + 1, k) + fz(i + 1, j + 1, k + 1))
-    c00 = c000 * (1 - dx) + c100 * dx
-    c01 = c001 * (1 - dx) + c101 * dx
-    c10 = c010 * (1 - dx) + c110 * dx
-    c11 = c011 * (1 - dx) + c111 * dx
-    c0 = c00 * (1 - dy) + c10 * dy
-    c1 = c01 * (1 - dy) + c11 * dy
-    intfz = c0 * (1 - dz) + c1 * dz
+      c0 = fz(i, j, k)
+      c1 = fz(i + 1, j, k)
+      intfz = c0 * (1 - dx) + c1 * dx
+#elif defined(twoD)
+      c000 = fz(i, j, k)
+      c100 = fz(i + 1, j, k)
+      c010 = fz(i, j + 1, k)
+      c110 = fz(i + 1, j + 1, k)
+      c00 = c000 * (1 - dx) + c100 * dx
+      c10 = c010 * (1 - dx) + c110 * dx
+      intfz = c00 * (1 - dy) + c10 * dy
+#elif defined(threeD)
+      c000 = 0.5 * (fz(i, j, k) + fz(i, j, k - 1))
+      c100 = 0.5 * (fz(i + 1, j, k) + fz(i + 1, j, k - 1))
+      c010 = 0.5 * (fz(i, j + 1, k) + fz(i, j + 1, k - 1))
+      c110 = 0.5 * (fz(i + 1, j + 1, k) + fz(i + 1, j + 1, k - 1))
+      c001 = 0.5 * (fz(i, j, k) + fz(i, j, k + 1))
+      c101 = 0.5 * (fz(i + 1, j, k) + fz(i + 1, j, k + 1))
+      c011 = 0.5 * (fz(i, j + 1, k) + fz(i, j + 1, k + 1))
+      c111 = 0.5 * (fz(i + 1, j + 1, k) + fz(i + 1, j + 1, k + 1))
+      c00 = c000 * (1 - dx) + c100 * dx
+      c01 = c001 * (1 - dx) + c101 * dx
+      c10 = c010 * (1 - dx) + c110 * dx
+      c11 = c011 * (1 - dx) + c111 * dx
+      c0 = c00 * (1 - dy) + c10 * dy
+      c1 = c01 * (1 - dy) + c11 * dy
+      intfz = c0 * (1 - dz) + c1 * dz
 #endif
+    end if
   end subroutine interpFromEdges
 
   subroutine interpFromFaces(dx, dy, dz, i, j, k, &
                              fx, fy, fz, &
-                             intfx, intfy, intfz)
+                             intfx, intfy, intfz, comp)
     implicit none
     integer(kind=2), intent(in) :: i, j, k
     real, intent(in) :: dx, dy, dz
-#ifdef oneD
-    real, intent(in) :: fx(-NGHOST:this_meshblock % ptr % sx - 1 + NGHOST, 0:0, 0:0)
-    real, intent(in) :: fy(-NGHOST:this_meshblock % ptr % sx - 1 + NGHOST, 0:0, 0:0)
-    real, intent(in) :: fz(-NGHOST:this_meshblock % ptr % sx - 1 + NGHOST, 0:0, 0:0)
-#elif twoD
-    real, intent(in) :: fx(-NGHOST:this_meshblock % ptr % sx - 1 + NGHOST, &
-                           -NGHOST:this_meshblock % ptr % sy - 1 + NGHOST, 0:0)
-    real, intent(in) :: fy(-NGHOST:this_meshblock % ptr % sx - 1 + NGHOST, &
-                           -NGHOST:this_meshblock % ptr % sy - 1 + NGHOST, 0:0)
-    real, intent(in) :: fz(-NGHOST:this_meshblock % ptr % sx - 1 + NGHOST, &
-                           -NGHOST:this_meshblock % ptr % sy - 1 + NGHOST, 0:0)
-#elif threeD
-    real, intent(in) :: fx(-NGHOST:this_meshblock % ptr % sx - 1 + NGHOST, &
-                           -NGHOST:this_meshblock % ptr % sy - 1 + NGHOST, &
-                           -NGHOST:this_meshblock % ptr % sz - 1 + NGHOST)
-    real, intent(in) :: fy(-NGHOST:this_meshblock % ptr % sx - 1 + NGHOST, &
-                           -NGHOST:this_meshblock % ptr % sy - 1 + NGHOST, &
-                           -NGHOST:this_meshblock % ptr % sz - 1 + NGHOST)
-    real, intent(in) :: fz(-NGHOST:this_meshblock % ptr % sx - 1 + NGHOST, &
-                           -NGHOST:this_meshblock % ptr % sy - 1 + NGHOST, &
-                           -NGHOST:this_meshblock % ptr % sz - 1 + NGHOST)
-#endif
+    real, intent(in) :: fx(this_meshblock % ptr % i1:this_meshblock % ptr % i2, &
+                           this_meshblock % ptr % j1:this_meshblock % ptr % j2, &
+                           this_meshblock % ptr % k1:this_meshblock % ptr % k2)
+    real, intent(in) :: fy(this_meshblock % ptr % i1:this_meshblock % ptr % i2, &
+                           this_meshblock % ptr % j1:this_meshblock % ptr % j2, &
+                           this_meshblock % ptr % k1:this_meshblock % ptr % k2)
+    real, intent(in) :: fz(this_meshblock % ptr % i1:this_meshblock % ptr % i2, &
+                           this_meshblock % ptr % j1:this_meshblock % ptr % j2, &
+                           this_meshblock % ptr % k1:this_meshblock % ptr % k2)
     real, intent(out) :: intfx, intfy, intfz
     real :: c000, c100, c001, c101, c010, c110, c011, c111, &
             c00, c01, c10, c11, c0, c1
+    integer, optional, intent(in) :: comp
+    integer :: comp_
+    if (.not. present(comp)) then
+      comp_ = 0
+    else
+      comp_ = comp
+    end if
     ! f_x
+    if ((comp_ .eq. 1) .or. (comp_ .le. 0)) then
 #ifdef oneD
-    c0 = 0.5 * (fx(i, j, k) + fx(i, j, k))
-    c1 = 0.5 * (fx(i + 1, j, k) + fx(i + 1, j, k))
-    intfx = c0 * (1 - dx) + c1 * dx
-#elif twoD
-    c000 = 0.5 * (fx(i, j, k) + fx(i, j - 1, k))
-    c100 = 0.5 * (fx(i + 1, j, k) + fx(i + 1, j - 1, k))
-    c010 = 0.5 * (fx(i, j, k) + fx(i, j + 1, k))
-    c110 = 0.5 * (fx(i + 1, j, k) + fx(i + 1, j + 1, k))
-    c00 = c000 * (1 - dx) + c100 * dx
-    c10 = c010 * (1 - dx) + c110 * dx
-    intfx = c00 * (1 - dy) + c10 * dy
-#elif threeD
-    c000 = 0.25 * (fx(i, j, k) + fx(i, j - 1, k) + &
-                   fx(i, j, k - 1) + fx(i, j - 1, k - 1))
-    c100 = 0.25 * (fx(i + 1, j, k) + fx(i + 1, j - 1, k) + &
-                   fx(i + 1, j, k - 1) + fx(i + 1, j - 1, k - 1))
-    c001 = 0.25 * (fx(i, j, k) + fx(i, j, k + 1) + &
-                   fx(i, j - 1, k) + fx(i, j - 1, k + 1))
-    c101 = 0.25 * (fx(i + 1, j, k) + fx(i + 1, j, k + 1) + &
-                   fx(i + 1, j - 1, k) + fx(i + 1, j - 1, k + 1))
-    c010 = 0.25 * (fx(i, j, k) + fx(i, j + 1, k) + &
-                   fx(i, j, k - 1) + fx(i, j + 1, k - 1))
-    c110 = 0.25 * (fx(i + 1, j, k) + fx(i + 1, j, k - 1) + &
-                   fx(i + 1, j + 1, k - 1) + fx(i + 1, j + 1, k))
-    c011 = 0.25 * (fx(i, j, k) + fx(i, j + 1, k) + &
-                   fx(i, j + 1, k + 1) + fx(i, j, k + 1))
-    c111 = 0.25 * (fx(i + 1, j, k) + fx(i + 1, j + 1, k) + &
-                   fx(i + 1, j + 1, k + 1) + fx(i + 1, j, k + 1))
-    c00 = c000 * (1 - dx) + c100 * dx
-    c01 = c001 * (1 - dx) + c101 * dx
-    c10 = c010 * (1 - dx) + c110 * dx
-    c11 = c011 * (1 - dx) + c111 * dx
-    c0 = c00 * (1 - dy) + c10 * dy
-    c1 = c01 * (1 - dy) + c11 * dy
-    intfx = c0 * (1 - dz) + c1 * dz
+      c0 = 0.5 * (fx(i, j, k) + fx(i, j, k))
+      c1 = 0.5 * (fx(i + 1, j, k) + fx(i + 1, j, k))
+      intfx = c0 * (1 - dx) + c1 * dx
+#elif defined(twoD)
+      c000 = 0.5 * (fx(i, j, k) + fx(i, j - 1, k))
+      c100 = 0.5 * (fx(i + 1, j, k) + fx(i + 1, j - 1, k))
+      c010 = 0.5 * (fx(i, j, k) + fx(i, j + 1, k))
+      c110 = 0.5 * (fx(i + 1, j, k) + fx(i + 1, j + 1, k))
+      c00 = c000 * (1 - dx) + c100 * dx
+      c10 = c010 * (1 - dx) + c110 * dx
+      intfx = c00 * (1 - dy) + c10 * dy
+#elif defined(threeD)
+      c000 = 0.25 * (fx(i, j, k) + fx(i, j - 1, k) + &
+                     fx(i, j, k - 1) + fx(i, j - 1, k - 1))
+      c100 = 0.25 * (fx(i + 1, j, k) + fx(i + 1, j - 1, k) + &
+                     fx(i + 1, j, k - 1) + fx(i + 1, j - 1, k - 1))
+      c001 = 0.25 * (fx(i, j, k) + fx(i, j, k + 1) + &
+                     fx(i, j - 1, k) + fx(i, j - 1, k + 1))
+      c101 = 0.25 * (fx(i + 1, j, k) + fx(i + 1, j, k + 1) + &
+                     fx(i + 1, j - 1, k) + fx(i + 1, j - 1, k + 1))
+      c010 = 0.25 * (fx(i, j, k) + fx(i, j + 1, k) + &
+                     fx(i, j, k - 1) + fx(i, j + 1, k - 1))
+      c110 = 0.25 * (fx(i + 1, j, k) + fx(i + 1, j, k - 1) + &
+                     fx(i + 1, j + 1, k - 1) + fx(i + 1, j + 1, k))
+      c011 = 0.25 * (fx(i, j, k) + fx(i, j + 1, k) + &
+                     fx(i, j + 1, k + 1) + fx(i, j, k + 1))
+      c111 = 0.25 * (fx(i + 1, j, k) + fx(i + 1, j + 1, k) + &
+                     fx(i + 1, j + 1, k + 1) + fx(i + 1, j, k + 1))
+      c00 = c000 * (1 - dx) + c100 * dx
+      c01 = c001 * (1 - dx) + c101 * dx
+      c10 = c010 * (1 - dx) + c110 * dx
+      c11 = c011 * (1 - dx) + c111 * dx
+      c0 = c00 * (1 - dy) + c10 * dy
+      c1 = c01 * (1 - dy) + c11 * dy
+      intfx = c0 * (1 - dz) + c1 * dz
 #endif
+    end if
 
     ! b_y
+    if ((comp_ .eq. 2) .or. (comp_ .le. 0)) then
 #ifdef oneD
-    c0 = 0.5 * (fy(i - 1, j, k) + fy(i, j, k))
-    c1 = 0.5 * (fy(i, j, k) + fy(i + 1, j, k))
-    intfy = c0 * (1 - dx) + c1 * dx
-#elif twoD
-    c000 = 0.5 * (fy(i - 1, j, k) + fy(i, j, k))
-    c100 = 0.5 * (fy(i, j, k) + fy(i + 1, j, k))
-    c010 = 0.5 * (fy(i - 1, j + 1, k) + fy(i, j + 1, k))
-    c110 = 0.5 * (fy(i, j + 1, k) + fy(i + 1, j + 1, k))
-    c00 = c000 * (1 - dx) + c100 * dx
-    c10 = c010 * (1 - dx) + c110 * dx
-    intfy = c00 * (1 - dy) + c10 * dy
-#elif threeD
-    c000 = 0.25 * (fy(i - 1, j, k - 1) + fy(i - 1, j, k) + &
-                   fy(i, j, k - 1) + fy(i, j, k))
-    c100 = 0.25 * (fy(i, j, k - 1) + fy(i, j, k) + &
-                   fy(i + 1, j, k - 1) + fy(i + 1, j, k))
-    c001 = 0.25 * (fy(i - 1, j, k) + fy(i - 1, j, k + 1) + &
-                   fy(i, j, k) + fy(i, j, k + 1))
-    c101 = 0.25 * (fy(i, j, k) + fy(i, j, k + 1) + &
-                   fy(i + 1, j, k) + fy(i + 1, j, k + 1))
-    c010 = 0.25 * (fy(i - 1, j + 1, k - 1) + fy(i - 1, j + 1, k) + &
-                   fy(i, j + 1, k - 1) + fy(i, j + 1, k))
-    c110 = 0.25 * (fy(i, j + 1, k - 1) + fy(i, j + 1, k) + &
-                   fy(i + 1, j + 1, k - 1) + fy(i + 1, j + 1, k))
-    c011 = 0.25 * (fy(i - 1, j + 1, k) + fy(i - 1, j + 1, k + 1) + &
-                   fy(i, j + 1, k) + fy(i, j + 1, k + 1))
-    c111 = 0.25 * (fy(i, j + 1, k) + fy(i, j + 1, k + 1) + &
-                   fy(i + 1, j + 1, k) + fy(i + 1, j + 1, k + 1))
-    c00 = c000 * (1 - dx) + c100 * dx
-    c01 = c001 * (1 - dx) + c101 * dx
-    c10 = c010 * (1 - dx) + c110 * dx
-    c11 = c011 * (1 - dx) + c111 * dx
-    c0 = c00 * (1 - dy) + c10 * dy
-    c1 = c01 * (1 - dy) + c11 * dy
-    intfy = c0 * (1 - dz) + c1 * dz
+      c0 = 0.5 * (fy(i - 1, j, k) + fy(i, j, k))
+      c1 = 0.5 * (fy(i, j, k) + fy(i + 1, j, k))
+      intfy = c0 * (1 - dx) + c1 * dx
+#elif defined(twoD)
+      c000 = 0.5 * (fy(i - 1, j, k) + fy(i, j, k))
+      c100 = 0.5 * (fy(i, j, k) + fy(i + 1, j, k))
+      c010 = 0.5 * (fy(i - 1, j + 1, k) + fy(i, j + 1, k))
+      c110 = 0.5 * (fy(i, j + 1, k) + fy(i + 1, j + 1, k))
+      c00 = c000 * (1 - dx) + c100 * dx
+      c10 = c010 * (1 - dx) + c110 * dx
+      intfy = c00 * (1 - dy) + c10 * dy
+#elif defined(threeD)
+      c000 = 0.25 * (fy(i - 1, j, k - 1) + fy(i - 1, j, k) + &
+                     fy(i, j, k - 1) + fy(i, j, k))
+      c100 = 0.25 * (fy(i, j, k - 1) + fy(i, j, k) + &
+                     fy(i + 1, j, k - 1) + fy(i + 1, j, k))
+      c001 = 0.25 * (fy(i - 1, j, k) + fy(i - 1, j, k + 1) + &
+                     fy(i, j, k) + fy(i, j, k + 1))
+      c101 = 0.25 * (fy(i, j, k) + fy(i, j, k + 1) + &
+                     fy(i + 1, j, k) + fy(i + 1, j, k + 1))
+      c010 = 0.25 * (fy(i - 1, j + 1, k - 1) + fy(i - 1, j + 1, k) + &
+                     fy(i, j + 1, k - 1) + fy(i, j + 1, k))
+      c110 = 0.25 * (fy(i, j + 1, k - 1) + fy(i, j + 1, k) + &
+                     fy(i + 1, j + 1, k - 1) + fy(i + 1, j + 1, k))
+      c011 = 0.25 * (fy(i - 1, j + 1, k) + fy(i - 1, j + 1, k + 1) + &
+                     fy(i, j + 1, k) + fy(i, j + 1, k + 1))
+      c111 = 0.25 * (fy(i, j + 1, k) + fy(i, j + 1, k + 1) + &
+                     fy(i + 1, j + 1, k) + fy(i + 1, j + 1, k + 1))
+      c00 = c000 * (1 - dx) + c100 * dx
+      c01 = c001 * (1 - dx) + c101 * dx
+      c10 = c010 * (1 - dx) + c110 * dx
+      c11 = c011 * (1 - dx) + c111 * dx
+      c0 = c00 * (1 - dy) + c10 * dy
+      c1 = c01 * (1 - dy) + c11 * dy
+      intfy = c0 * (1 - dz) + c1 * dz
 #endif
+    end if
 
     ! b_z
+    if ((comp_ .eq. 3) .or. (comp_ .le. 0)) then
 #ifdef oneD
-    c0 = 0.5 * (fz(i - 1, j, k) + fz(i, j, k))
-    c1 = 0.5 * (fz(i, j, k) + fz(i + 1, j, k))
-    intfz = c0 * (1 - dx) + c1 * dx
-#elif twoD
-    c000 = 0.25 * (fz(i - 1, j - 1, k) + fz(i - 1, j, k) + &
-                   fz(i, j - 1, k) + fz(i, j, k))
-    c100 = 0.25 * (fz(i, j - 1, k) + fz(i, j, k) + &
-                   fz(i + 1, j - 1, k) + fz(i + 1, j, k))
-    c010 = 0.25 * (fz(i - 1, j, k) + fz(i - 1, j + 1, k) + &
-                   fz(i, j, k) + fz(i, j + 1, k))
-    c110 = 0.25 * (fz(i, j, k) + fz(i, j + 1, k) + &
-                   fz(i + 1, j, k) + fz(i + 1, j + 1, k))
-    c00 = c000 * (1 - dx) + c100 * dx
-    c10 = c010 * (1 - dx) + c110 * dx
-    intfz = c00 * (1 - dy) + c10 * dy
-#elif threeD
-    c000 = 0.25 * (fz(i - 1, j - 1, k) + fz(i - 1, j, k) + &
-                   fz(i, j - 1, k) + fz(i, j, k))
-    c100 = 0.25 * (fz(i, j - 1, k) + fz(i, j, k) + &
-                   fz(i + 1, j - 1, k) + fz(i + 1, j, k))
-    c001 = 0.25 * (fz(i - 1, j - 1, k + 1) + fz(i - 1, j, k + 1) + &
-                   fz(i, j - 1, k + 1) + fz(i, j, k + 1))
-    c101 = 0.25 * (fz(i, j - 1, k + 1) + fz(i, j, k + 1) + &
-                   fz(i + 1, j - 1, k + 1) + fz(i + 1, j, k + 1))
-    c010 = 0.25 * (fz(i - 1, j, k) + fz(i - 1, j + 1, k) + &
-                   fz(i, j, k) + fz(i, j + 1, k))
-    c110 = 0.25 * (fz(i, j, k) + fz(i, j + 1, k) + &
-                   fz(i + 1, j, k) + fz(i + 1, j + 1, k))
-    c011 = 0.25 * (fz(i - 1, j, k + 1) + fz(i - 1, j + 1, k + 1) + &
-                   fz(i, j, k + 1) + fz(i, j + 1, k + 1))
-    c111 = 0.25 * (fz(i, j, k + 1) + fz(i, j + 1, k + 1) + &
-                   fz(i + 1, j, k + 1) + fz(i + 1, j + 1, k + 1))
-    c00 = c000 * (1 - dx) + c100 * dx
-    c01 = c001 * (1 - dx) + c101 * dx
-    c10 = c010 * (1 - dx) + c110 * dx
-    c11 = c011 * (1 - dx) + c111 * dx
-    c0 = c00 * (1 - dy) + c10 * dy
-    c1 = c01 * (1 - dy) + c11 * dy
-    intfz = c0 * (1 - dz) + c1 * dz
+      c0 = 0.5 * (fz(i - 1, j, k) + fz(i, j, k))
+      c1 = 0.5 * (fz(i, j, k) + fz(i + 1, j, k))
+      intfz = c0 * (1 - dx) + c1 * dx
+#elif defined(twoD)
+      c000 = 0.25 * (fz(i - 1, j - 1, k) + fz(i - 1, j, k) + &
+                     fz(i, j - 1, k) + fz(i, j, k))
+      c100 = 0.25 * (fz(i, j - 1, k) + fz(i, j, k) + &
+                     fz(i + 1, j - 1, k) + fz(i + 1, j, k))
+      c010 = 0.25 * (fz(i - 1, j, k) + fz(i - 1, j + 1, k) + &
+                     fz(i, j, k) + fz(i, j + 1, k))
+      c110 = 0.25 * (fz(i, j, k) + fz(i, j + 1, k) + &
+                     fz(i + 1, j, k) + fz(i + 1, j + 1, k))
+      c00 = c000 * (1 - dx) + c100 * dx
+      c10 = c010 * (1 - dx) + c110 * dx
+      intfz = c00 * (1 - dy) + c10 * dy
+#elif defined(threeD)
+      c000 = 0.25 * (fz(i - 1, j - 1, k) + fz(i - 1, j, k) + &
+                     fz(i, j - 1, k) + fz(i, j, k))
+      c100 = 0.25 * (fz(i, j - 1, k) + fz(i, j, k) + &
+                     fz(i + 1, j - 1, k) + fz(i + 1, j, k))
+      c001 = 0.25 * (fz(i - 1, j - 1, k + 1) + fz(i - 1, j, k + 1) + &
+                     fz(i, j - 1, k + 1) + fz(i, j, k + 1))
+      c101 = 0.25 * (fz(i, j - 1, k + 1) + fz(i, j, k + 1) + &
+                     fz(i + 1, j - 1, k + 1) + fz(i + 1, j, k + 1))
+      c010 = 0.25 * (fz(i - 1, j, k) + fz(i - 1, j + 1, k) + &
+                     fz(i, j, k) + fz(i, j + 1, k))
+      c110 = 0.25 * (fz(i, j, k) + fz(i, j + 1, k) + &
+                     fz(i + 1, j, k) + fz(i + 1, j + 1, k))
+      c011 = 0.25 * (fz(i - 1, j, k + 1) + fz(i - 1, j + 1, k + 1) + &
+                     fz(i, j, k + 1) + fz(i, j + 1, k + 1))
+      c111 = 0.25 * (fz(i, j, k + 1) + fz(i, j + 1, k + 1) + &
+                     fz(i + 1, j, k + 1) + fz(i + 1, j + 1, k + 1))
+      c00 = c000 * (1 - dx) + c100 * dx
+      c01 = c001 * (1 - dx) + c101 * dx
+      c10 = c010 * (1 - dx) + c110 * dx
+      c11 = c011 * (1 - dx) + c111 * dx
+      c0 = c00 * (1 - dy) + c10 * dy
+      c1 = c01 * (1 - dy) + c11 * dy
+      intfz = c0 * (1 - dz) + c1 * dz
 #endif
+    end if
   end subroutine interpFromFaces
 
   subroutine depositCurrentsFromSingleParticle(s, tile, p, x1, y1, z1, &
@@ -1079,13 +1171,13 @@ contains
     j1 = 0; j2 = 0
     k1 = 0; k2 = 0
     i1p1 = i1 + 1_2; i2p1 = i2 + 1_2
-#elif twoD
+#elif defined(twoD)
     i1 = INT(FLOOR(x1), 2); i2 = INT(FLOOR(x2), 2)
     j1 = INT(FLOOR(y1), 2); j2 = INT(FLOOR(y2), 2)
     k1 = 0; k2 = 0
     i1p1 = i1 + 1_2; i2p1 = i2 + 1_2
     j1p1 = j1 + 1_2; j2p1 = j2 + 1_2
-#elif threeD
+#elif defined(threeD)
     i1 = INT(FLOOR(x1), 2); i2 = INT(FLOOR(x2), 2)
     j1 = INT(FLOOR(y1), 2); j2 = INT(FLOOR(y2), 2)
     k1 = INT(FLOOR(z1), 2); k2 = INT(FLOOR(z2), 2)
@@ -1107,7 +1199,7 @@ contains
     implicit none
     ! this is an ultimate function that checks that all the implicit assertions are satisfied
     integer, dimension(3) :: field_shape
-    integer :: s, ti, tj, tk, p, i, j, k, dummy1, dummy2, ierr
+    integer :: s, ti, tj, tk, p, i, j, k, dummy1, dummy2, ierr, shape_x
     integer(kind=2), pointer, contiguous :: pt_xi(:), pt_yi(:), pt_zi(:)
     real, pointer, contiguous :: pt_dx(:), pt_dy(:), pt_dz(:)
     real, pointer, contiguous :: pt_ux(:), pt_uy(:), pt_uz(:)
@@ -1118,12 +1210,12 @@ contains
     if (this_meshblock % ptr % sx .lt. NGHOST) then
       call throwError('ERROR: ghost zones overflow the domain size in '//trim(STR(mpi_rank)))
     end if
-#elif twoD
+#elif defined(twoD)
     if ((this_meshblock % ptr % sx .lt. NGHOST) .or. &
         (this_meshblock % ptr % sy .lt. NGHOST)) then
       call throwError('ERROR: ghost zones overflow the domain size in '//trim(STR(mpi_rank)))
     end if
-#elif threeD
+#elif defined(threeD)
     if ((this_meshblock % ptr % sx .lt. NGHOST) .or. &
         (this_meshblock % ptr % sy .lt. NGHOST) .or. &
         (this_meshblock % ptr % sz .lt. NGHOST)) then
@@ -1132,12 +1224,14 @@ contains
 #endif
 
     ! 2. check field dimensions
+    shape_x = this_meshblock % ptr % sx + 2 * NGHOST
+    shape_x = ((shape_x + VEC_LEN - 1) / VEC_LEN) * VEC_LEN
 #ifdef oneD
-    field_shape = (/this_meshblock % ptr % sx + 2 * NGHOST, 1, 1/)
-#elif twoD
-    field_shape = (/this_meshblock % ptr % sx + 2 * NGHOST, this_meshblock % ptr % sy + 2 * NGHOST, 1/)
-#elif threeD
-    field_shape = (/this_meshblock % ptr % sx + 2 * NGHOST, this_meshblock % ptr % sy + 2 * NGHOST, this_meshblock % ptr % sz + 2 * NGHOST/)
+    field_shape = (/shape_x, 1, 1/)
+#elif defined(twoD)
+    field_shape = (/shape_x, this_meshblock % ptr % sy + 2 * NGHOST, 1/)
+#elif defined(threeD)
+    field_shape = (/shape_x, this_meshblock % ptr % sy + 2 * NGHOST, this_meshblock % ptr % sz + 2 * NGHOST/)
 #endif
 
     if (.not. arraysAreEqual(shape(ex), field_shape)) then
@@ -1226,9 +1320,9 @@ contains
         end do
       end do
 
-      do ti = 1, species(s) % tile_nx
+      do tk = 1, species(s) % tile_nz
         do tj = 1, species(s) % tile_ny
-          do tk = 1, species(s) % tile_nz
+          do ti = 1, species(s) % tile_nx
 
             if ((species(s) % prtl_tile(ti, tj, tk) % x1 .lt. 0) .or. &
                 (species(s) % prtl_tile(ti, tj, tk) % x2 .gt. this_meshblock % ptr % sx) .or. &

@@ -35,8 +35,14 @@ module m_particles
     logical :: deposit_sp
     ! `true/false` - whether this species moves or not
     logical :: move_sp
-    ! `true/false` - whether this species is saved into particle output
-    logical :: output_sp
+    ! `true/false` - whether this species is saved into hist, fld, prtl output
+    logical :: output_sp_hist
+    logical :: output_sp_fld
+    logical :: output_sp_prtl
+    logical :: flds_at_prtl_sp
+    logical :: dens_at_prtl_sp
+    integer :: n_prtl_vars_sp, n_dom_vars_sp
+    character(len=STR_MAX) :: prtl_vars_sp(64), prtl_var_types_sp(64)
 
     ! extra physics properties
 #ifdef RADIATION
@@ -53,7 +59,7 @@ module m_particles
 
   ! particle types for exchange between processors />
   type :: prtl_enroute
-  sequence
+    sequence
 
     ! DEP_PRT [particle-dependent]
     integer(kind=2) :: xi, yi, zi

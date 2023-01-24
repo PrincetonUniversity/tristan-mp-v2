@@ -295,12 +295,12 @@ contains
     sz_glob = REAL(global_mesh % sz)
 
     load_real = 0.0
-    do i = 0, this_meshblock % ptr % sx - 1
-      x_glob = REAL(i + this_meshblock % ptr % x0)
+    do k = 0, this_meshblock % ptr % sz - 1
+      z_glob = REAL(k + this_meshblock % ptr % z0)
       do j = 0, this_meshblock % ptr % sy - 1
         y_glob = REAL(j + this_meshblock % ptr % y0)
-        do k = 0, this_meshblock % ptr % sz - 1
-          z_glob = REAL(k + this_meshblock % ptr % z0)
+        do i = 0, this_meshblock % ptr % sx - 1
+          x_glob = REAL(i + this_meshblock % ptr % x0)
           load_real = load_real + &
                       spat_load_ptr(x_glob=x_glob, y_glob=y_glob, z_glob=z_glob, &
                                     dummy1=sx_glob, dummy2=sy_glob, dummy3=sz_glob)

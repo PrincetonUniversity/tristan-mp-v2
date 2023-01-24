@@ -76,14 +76,14 @@ contains
     call globalToLocalCoords(fill_region % x_max, 0.0, 0.0, &
                              fill_xmax, fill_ymax, fill_zmax, adjustQ=.true.)
     num_part_r = REAL(ndens_sp) * (fill_xmax - fill_xmin)
-#elif twoD
+#elif defined(twoD)
     call globalToLocalCoords(fill_region % x_min, fill_region % y_min, 0.0, &
                              fill_xmin, fill_ymin, fill_zmin, adjustQ=.true.)
     call globalToLocalCoords(fill_region % x_max, fill_region % y_max, 0.0, &
                              fill_xmax, fill_ymax, fill_zmax, adjustQ=.true.)
     num_part_r = REAL(ndens_sp) * (fill_xmax - fill_xmin) &
                  * (fill_ymax - fill_ymin)
-#elif threeD
+#elif defined(threeD)
     call globalToLocalCoords(fill_region % x_min, fill_region % y_min, fill_region % z_min, &
                              fill_xmin, fill_ymin, fill_zmin, adjustQ=.true.)
     call globalToLocalCoords(fill_region % x_max, fill_region % y_max, fill_region % z_max, &

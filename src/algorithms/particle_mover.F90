@@ -35,6 +35,11 @@ contains
             c00, c01, c10, c11, c0, c1
     integer :: iy, iz, lind
 
+#ifdef PRTLPAYLOADS
+    real, pointer, contiguous :: pt_pld1(:), pt_pld2(:), pt_pld3(:)
+    real :: incr_pld1, incr_pld2, incr_pld3
+#endif
+
 #if defined (RADIATION) || defined (GCA)
     integer, pointer, contiguous :: pt_proc(:)
 #endif
@@ -49,8 +54,8 @@ contains
 
     if (.false.) print *, timestep
 
-    iy = this_meshblock % ptr % sx + 2 * NGHOST
-    iz = iy * (this_meshblock % ptr % sy + 2 * NGHOST)
+    iy = this_meshblock % ptr % i2 - this_meshblock % ptr % i1 + 1
+    iz = iy * (this_meshblock % ptr % j2 - this_meshblock % ptr % j1 + 1)
 
 #ifdef RADIATION
     if (rad_dens_lim .gt. 0) then
@@ -69,9 +74,9 @@ contains
     do s = 1, nspec
       if (.not. species(s) % move_sp) cycle
       if (species(s) % m_sp .eq. 0) then
-        do ti = 1, species(s) % tile_nx
+        do tk = 1, species(s) % tile_nz
           do tj = 1, species(s) % tile_ny
-            do tk = 1, species(s) % tile_nz
+            do ti = 1, species(s) % tile_nx
               pt_xi => species(s) % prtl_tile(ti, tj, tk) % xi
               pt_yi => species(s) % prtl_tile(ti, tj, tk) % yi
               pt_zi => species(s) % prtl_tile(ti, tj, tk) % zi
@@ -84,12 +89,29 @@ contains
               pt_v => species(s) % prtl_tile(ti, tj, tk) % v
               pt_w => species(s) % prtl_tile(ti, tj, tk) % w
 
+#ifdef PRTLPAYLOADS
+              pt_pld1 => species(s) % prtl_tile(ti, tj, tk) % payload1
+              pt_pld2 => species(s) % prtl_tile(ti, tj, tk) % payload2
+              pt_pld3 => species(s) % prtl_tile(ti, tj, tk) % payload3
+#endif
+
               ! routine for massless particles
+#ifdef PRTLPAYLOADS
+              !$omp simd private(over_e_temp, temp_r, temp_i, incr_pld1, incr_pld2, incr_pld3, u0, v0, w0)
+#else
               !$omp simd private(over_e_temp, temp_r, temp_i)
+#endif
               !dir$ vector aligned
               do p = 1, species(s) % prtl_tile(ti, tj, tk) % npart_sp
                 ! move particle
                 over_e_temp = 1.0 / sqrt(pt_u(p)**2 + pt_v(p)**2 + pt_w(p)**2)
+#ifdef PRTLPAYLOADS
+                u0 = pt_u(p); v0 = pt_v(p); w0 = pt_w(p)
+                call usrSetPhPld(u0, v0, w0, over_e_temp, incr_pld1, incr_pld2, incr_pld3)
+                pt_pld1(p) = pt_pld1(p) + incr_pld1
+                pt_pld2(p) = pt_pld2(p) + incr_pld2
+                pt_pld3(p) = pt_pld3(p) + incr_pld3
+#endif
                 ! this "function" takes
                 ! ... inverse energy: `over_e_temp` ...
                 ! ... reads the velocities from: `pt_*(p)` ...
@@ -99,13 +121,16 @@ contains
               pt_xi => null(); pt_yi => null(); pt_zi => null()
               pt_dx => null(); pt_dy => null(); pt_dz => null()
               pt_u => null(); pt_v => null(); pt_w => null()
-            end do ! tk
+#ifdef PRTLPAYLOADS
+              pt_pld1 => null(); pt_pld2 => null(); pt_pld3 => null()
+#endif
+            end do ! ti
           end do ! tj
-        end do ! ti
+        end do ! tk
       else ! massive particles
-        do ti = 1, species(s) % tile_nx
+        do tk = 1, species(s) % tile_nz
           do tj = 1, species(s) % tile_ny
-            do tk = 1, species(s) % tile_nz
+            do ti = 1, species(s) % tile_nx
               pt_xi => species(s) % prtl_tile(ti, tj, tk) % xi
               pt_yi => species(s) % prtl_tile(ti, tj, tk) % yi
               pt_zi => species(s) % prtl_tile(ti, tj, tk) % zi
@@ -119,6 +144,12 @@ contains
               pt_w => species(s) % prtl_tile(ti, tj, tk) % w
 
               pt_wei => species(s) % prtl_tile(ti, tj, tk) % weight
+
+#ifdef PRTLPAYLOADS
+              pt_pld1 => species(s) % prtl_tile(ti, tj, tk) % payload1
+              pt_pld2 => species(s) % prtl_tile(ti, tj, tk) % payload2
+              pt_pld3 => species(s) % prtl_tile(ti, tj, tk) % payload3
+#endif
 
 #if defined(RADIATION) || defined(GCA)
               pt_proc => species(s) % prtl_tile(ti, tj, tk) % proc
@@ -134,6 +165,9 @@ contains
               !$omp simd private(lind, dummy_, g_temp, over_e_temp,&
               !$omp  temp_r, temp_i, u0, v0, w0, u1, v1, w1,&
               !$omp  ex0, ey0, ez0, bx0, by0, bz0,&
+#ifdef PRTLPAYLOADS
+              !$omp  incr_pld1, incr_pld2, incr_pld3,&
+#endif
               !$omp  c000, c100, c001, c101, c010, c110, c011, c111,&
               !$omp  c00, c01, c10, c11, c0, c1)
               !dir$ vector aligned
@@ -143,9 +177,9 @@ contains
                 ! use "fast" interpolation
 #ifdef oneD
                 lind = pt_xi(p)
-#elif twoD
+#elif defined(twoD)
                 lind = pt_xi(p) + (NGHOST + pt_yi(p)) * iy
-#elif threeD
+#elif defined(threeD)
                 lind = pt_xi(p) + (NGHOST + pt_yi(p)) * iy + (NGHOST + pt_zi(p)) * iz
 #endif
                 dx = pt_dx(p); dy = pt_dy(p); dz = pt_dz(p)
@@ -198,6 +232,12 @@ contains
 #endif
                 pt_u(p) = u0; pt_v(p) = v0; pt_w(p) = w0
                 over_e_temp = 1.0 / sqrt(1.0 + pt_u(p)**2 + pt_v(p)**2 + pt_w(p)**2)
+#ifdef PRTLPAYLOADS
+                call usrSetElPld(q_over_m, u0, v0, w0, over_e_temp, ex0, ey0, ez0, bx0, by0, bz0, incr_pld1, incr_pld2, incr_pld3)
+                pt_pld1(p) = pt_pld1(p) + incr_pld1
+                pt_pld2(p) = pt_pld2(p) + incr_pld2
+                pt_pld3(p) = pt_pld3(p) + incr_pld3
+#endif
                 ! this "function" takes
                 ! ... inverse energy: `over_e_temp` ...
                 ! ... reads the velocities from: `pt_*(p)` ...
@@ -233,6 +273,10 @@ contains
 
               pt_wei => null()
 
+#ifdef PRTLPAYLOADS
+              pt_pld1 => null(); pt_pld2 => null(); pt_pld3 => null()
+#endif
+
 #if defined (RADIATION) || defined (GCA)
               pt_proc => null(); 
 #endif
@@ -241,12 +285,13 @@ contains
               pt_ind => null()
 #endif
 
-            end do ! tk
+            end do ! ti
           end do ! tj
-        end do ! ti
+        end do ! tk
       end if
     end do ! species
     call printDiag("moveParticles()", 2)
 
   end subroutine moveParticles
 end module m_mover
+

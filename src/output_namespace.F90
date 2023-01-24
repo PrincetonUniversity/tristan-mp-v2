@@ -19,11 +19,13 @@ module m_outputnamespace
   logical :: tot_output_enable
   logical :: params_enable, prtl_tot_enable
   logical :: flds_tot_enable, spectra_enable, diag_enable
-  logical :: flds_at_prtl_enable, xdmf_enable
+  logical :: xdmf_enable
   logical :: derivatives_enable, npart_enable, T0i_output_enable, Tij_output_enable, Tii_output_enable
+  logical :: sq_momenta_enable, prtl_curr_enable, fluid_vel_enable
   integer :: tot_output_start, tot_output_interval
   integer :: tot_output_stride      ! particle striding
   integer :: output_flds_istep      ! field downsampling for .tot.
+  integer :: flds_write_every, prtl_write_every, spec_write_every
   ! ... for `slice` outputs
   logical :: slice_output_enable
   integer :: slice_output_start, slice_output_interval
@@ -39,8 +41,8 @@ module m_outputnamespace
 
   ! variables
   ! ... for particle/diag output
-  integer :: n_prtl_vars, n_dom_vars
-  character(len=STR_MAX) :: prtl_vars(100), prtl_var_types(100), dom_vars(100)
+  integer :: n_dom_vars
+  character(len=STR_MAX) :: dom_vars(100)
 
   ! ... for spectra
   real :: spec_bin_size

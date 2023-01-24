@@ -325,4 +325,6 @@ contains
     shape = 0.5 * (1.0 - tanh((rad - rad0) / del))
   end function shape
   !............................................................!
+
+#include "optional.F"
 end module m_userfile

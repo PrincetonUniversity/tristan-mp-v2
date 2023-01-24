@@ -3,7 +3,7 @@ module m_writetotflds
   use hdf5
   use m_globalnamespace, only: h5comm, h5info
 #endif
-  use m_globalnamespace, only: output_dir_name, mpi_rank
+  use m_globalnamespace, only: output_dir_name, mpi_rank, output_dir_flds
   use m_outputnamespace, only: xdmf_enable, fld_vars, n_fld_vars, output_flds_istep
   use m_aux
   use m_domain
@@ -36,7 +36,7 @@ contains
     if (.false.) print *, time
 
     write (stepchar, "(i5.5)") step
-    filename = trim(output_dir_name)//'/flds.tot.'//trim(stepchar)//'.xdmf'
+    filename = trim(output_dir_flds)//'/flds.tot.'//trim(stepchar)//'.xdmf'
 
     open (UNIT_xdmf, file=filename, status="replace", access="stream", form="formatted")
     write (UNIT_xdmf, "(A)") &
@@ -116,7 +116,7 @@ contains
     call getBlockDimensions(this_meshblock % ptr, starts, offsets, blocks, global_dims)
 
     write (stepchar, "(i5.5)") step
-    filename = trim(output_dir_name)//'/flds.tot.'//trim(stepchar)
+    filename = trim(output_dir_flds)//'/flds.tot.'//trim(stepchar)
 
     if ((mpi_rank .eq. 0) .and. xdmf_enable) then
       call writeXDMF_hdf5(step, time, INT(global_dims(1)), INT(global_dims(2)), INT(global_dims(3)))
@@ -152,9 +152,9 @@ contains
     do f = 1, n_fld_vars
       call prepareFieldForOutput(fld_vars(f), writing_lgarrQ)
       ! Create dataset by interpolating fields
-      do i1 = 0, INT(blocks(1) - 1, 2)
+      do k1 = 0, INT(blocks(3) - 1, 2)
         do j1 = 0, INT(blocks(2) - 1, 2)
-          do k1 = 0, INT(blocks(3) - 1, 2)
+          do i1 = 0, INT(blocks(1) - 1, 2)
             i = INT(starts(1) + i1 * output_flds_istep, 2)
             j = INT(starts(2) + j1 * output_flds_istep, 2)
             k = INT(starts(3) + k1 * output_flds_istep, 2)
@@ -232,7 +232,7 @@ contains
 
     if (mpi_rank .eq. root_rnk) then
       write (stepchar, "(i5.5)") step
-      filename = trim(output_dir_name)//'/flds.tot.'//trim(stepchar)
+      filename = trim(output_dir_flds)//'/flds.tot.'//trim(stepchar)
 
       if (xdmf_enable) then
         call writeXDMF_hdf5(step, time, INT(global_dims(1)), INT(global_dims(2)), INT(global_dims(3)))
@@ -256,9 +256,9 @@ contains
         if (rnk .eq. mpi_rank) then
           ! Prepare fields to output
           call prepareFieldForOutput(fld_vars(f), writing_lgarrQ)
-          do i1 = 0, blocks(1) - 1
+          do k1 = 0, blocks(3) - 1
             do j1 = 0, blocks(2) - 1
-              do k1 = 0, blocks(3) - 1
+              do i1 = 0, blocks(1) - 1
                 i = starts(1) + i1 * output_flds_istep
                 j = starts(2) + j1 * output_flds_istep
                 k = starts(3) + k1 * output_flds_istep

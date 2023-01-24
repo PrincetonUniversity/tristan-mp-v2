@@ -35,7 +35,7 @@ jz(i1, j1, k1) = jz(i1, j1, k1) + Fz1 * onemWx1
 jz(i1p1, j1, k1) = jz(i1p1, j1, k1) + Fz1 * Wx1
 jz(i2, j2, k2) = jz(i2, j2, k2) + Fz2 * onemWx2
 jz(i2p1, j2, k2) = jz(i2p1, j2, k2) + Fz2 * Wx2
-#elif twoD
+#elif defined(twoD)
 Wx1 = 0.5 * (x1 + xr) - i1; Wy1 = 0.5 * (y1 + yr) - j1
 Wx2 = 0.5 * (x2 + xr) - i2; Wy2 = 0.5 * (y2 + yr) - j2
 onemWx1 = 1 - Wx1; onemWy1 = 1 - Wy1
@@ -70,7 +70,7 @@ jz(i2, j2, k2) = jz(i2, j2, k2) + Fz2 * onemWx2 * onemWy2
 jz(i2p1, j2, k2) = jz(i2p1, j2, k2) + Fz2 * Wx2 * onemWy2
 jz(i2, j2p1, k2) = jz(i2, j2p1, k2) + Fz2 * onemWx2 * Wy2
 jz(i2p1, j2p1, k2) = jz(i2p1, j2p1, k2) + Fz2 * Wx2 * Wy2
-#elif threeD
+#elif defined(threeD)
 Wx1 = 0.5 * (x1 + xr) - i1; Wy1 = 0.5 * (y1 + yr) - j1; Wz1 = 0.5 * (z1 + zr) - k1
 Wx2 = 0.5 * (x2 + xr) - i2; Wy2 = 0.5 * (y2 + yr) - j2; Wz2 = 0.5 * (z2 + zr) - k2
 onemWx1 = 1 - Wx1; onemWy1 = 1 - Wy1; onemWz1 = 1 - Wz1

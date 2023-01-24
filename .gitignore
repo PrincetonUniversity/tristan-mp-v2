@@ -18,3 +18,7 @@
 !LICENSE
 .vscode/*.log
 __pycache__
+
+*.pyc
+.DS_Store
+.venv

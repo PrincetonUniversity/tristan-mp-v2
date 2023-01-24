@@ -14,6 +14,7 @@ def getParticles(fname):
     for s in range(nspec):
       data[str(s + 1)] = {}
       for i in range(nvars):
+        if (not (variables[i] + '_' + str(s + 1)) in file): continue
         (data[str(s + 1)])[variables[i]] = file[variables[i] + '_' + str(s + 1)][:]
   return data
 
@@ -293,35 +294,23 @@ def parseReport(fname, nsteps = None, skip = 1, skip_every = 1e6):
   return data
 
 def parseHistory(fname):
-  from itertools import groupby
   import re
-  def make_grouper():
-    counter = 0
-    def key(line):
-      nonlocal counter
-      if line.startswith('===='):
-        counter += 1
-      return counter
-    return key
+  data = {}
   with open(fname, 'r') as f:
-    data = {}
-    for k, group in groupby(f, key=make_grouper()):
-      fasta_section = ''.join(group)
-      block = fasta_section.split("\n", 1)[1]
-      if (k == 1):
-        template = block
-        template_keys = np.array(re.findall('\[.+?\]', template))
-        mask = (template_keys != '[% Etot]')
-        template_keys = np.array(list(map(lambda x: x[1:-1], template_keys[mask])))
-        data = {key: np.array([]) for key in template_keys}
-      else:
+    block = f.readline()
+    template_keys = np.array(re.findall('\[.+?\]', block))
+    template_keys = np.array(list(map(lambda x: x[1:-1], template_keys)))
+    data = {key: np.array([]) for key in template_keys}
+    while block:
+        block = f.readline()
         block_values = np.array(re.findall('-?\ *[0-9]+\.?[0-9]*(?:[Ee]\ *[-|+]?\ *[0-9]+)?', block))
         if (len(block) == 0):
           break
-        block_values = np.array(list(map(np.float, block_values[mask])))
+        block_values = np.array(list(map(np.float, block_values)))
         pairs = {key: v for key, v in zip(template_keys, block_values)}
         for key in template_keys:
-          data[key] = np.append(data[key], pairs[key])
+            data[key] = np.append(data[key], pairs[key])
+  data['% dEtot'] = 100.0 * (data['Etot'] - data['Etot'][0]) / data['Etot'][0]
   return data
 
 def parseUsrOutput(fname):

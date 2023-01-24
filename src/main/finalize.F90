@@ -5,6 +5,7 @@ module m_finalize
   use m_particles
   use m_fieldlogistics, only: deallocateFields, deallocateFieldBackups
   use m_particlelogistics, only: deallocateParticles, deallocateParticleBackup
+  use m_userfile, only: userDeallocate
   implicit none
 
   !--- PRIVATE functions -----------------------------------------!
@@ -43,6 +44,8 @@ contains
     call deallocateParticleBackup()
 
     call MPI_TYPE_FREE(myMPI_ENROUTE, ierr)
+
+    call userDeallocate()
 
     call deallocateFields()
     call deallocateFieldBackups()

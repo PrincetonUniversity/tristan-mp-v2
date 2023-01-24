@@ -18,8 +18,8 @@ contains
 
   subroutine reallocateFields(meshblock)
     implicit none
-    type(mesh), intent(in) :: meshblock
-    integer :: i1, i2, j1, j2, k1, k2
+    type(mesh), intent(inout) :: meshblock
+    integer :: i1, i2, j1, j2, k1, k2, shape_x
     i1 = -NGHOST; i2 = meshblock % sx - 1 + NGHOST
     j1 = -NGHOST; j2 = meshblock % sy - 1 + NGHOST
     k1 = -NGHOST; k2 = meshblock % sz - 1 + NGHOST
@@ -27,9 +27,20 @@ contains
 #ifdef oneD
     j1 = 0; j2 = 0
     k1 = 0; k2 = 0
-#elif twoD
+#elif defined(twoD)
     k1 = 0; k2 = 0
 #endif
+
+    shape_x = i2 - i1 + 1
+    shape_x = ((shape_x + VEC_LEN - 1) / VEC_LEN) * VEC_LEN
+    i2 = i1 + shape_x - 1
+
+    meshblock % i1 = i1
+    meshblock % i2 = i2
+    meshblock % j1 = j1
+    meshblock % j2 = j2
+    meshblock % k1 = k1
+    meshblock % k2 = k2
 
     allocate (ex(i1:i2, j1:j2, k1:k2))
     allocate (ey(i1:i2, j1:j2, k1:k2))
@@ -58,15 +69,17 @@ contains
     sendrecv_offsetsz = NGHOST * max_n_fld
     ! 2 (~5) directions to send/recv in 1D
     sendrecv_buffsz = sendrecv_offsetsz * 5
-#elif twoD
+#elif defined(twoD)
     sendrecv_offsetsz = MAX0(meshblock % sx, meshblock % sy, meshblock % sz) * NGHOST * max_n_fld
     ! 8 (~10) directions to send/recv in 2D
     sendrecv_buffsz = sendrecv_offsetsz * 10
-#elif threeD
+#elif defined(threeD)
     sendrecv_offsetsz = MAX0(meshblock % sx, meshblock % sy, meshblock % sz)**2 * NGHOST * max_n_fld
     ! 26 (~30) directions to send/recv in 3D
     sendrecv_buffsz = sendrecv_offsetsz * 30
 #endif
+    sendrecv_offsetsz = ((sendrecv_offsetsz + VEC_LEN - 1) / VEC_LEN) * VEC_LEN
+    sendrecv_buffsz = ((sendrecv_buffsz + VEC_LEN - 1) / VEC_LEN) * VEC_LEN
 
     allocate (send_fld(sendrecv_buffsz))
     allocate (recv_fld(sendrecv_offsetsz))
