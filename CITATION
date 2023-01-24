@@ -5,16 +5,21 @@ If you use `Tristan-MP v2` for work/research presented in a publication (whether
 You may also use the following `bibtex` entry:
 
 ```
-@ONLINE {tristanv2,
-    author = "H. Hakobyan, and A. Spitkovsky",
-    title  = "Tristan-MP v2, multi-species particle-in-cell plasma code",
-    year   = "2020",
-    url    = "https://princetonuniversity.github.io/tristan-v2/"
+@software{hayk_hakobyan_2023_7566725,
+  author       = {Hayk Hakobyan and
+                  Anatoly Spitkovsky and
+                  Alexander Chernoglazov and
+                  Sasha Philippov and
+                  Daniel Groselj and
+                  Jens Mahlmann},
+  title        = {PrincetonUniversity/tristan-mp-v2: v2.6},
+  month        = jan,
+  year         = 2023,
+  publisher    = {Zenodo},
+  version      = {v2.6},
+  doi          = {10.5281/zenodo.7566725},
+  url          = {https://doi.org/10.5281/zenodo.7566725}
 }
 ```
 
 We also recommend to link to the source code on github: https://github.com/PrincetonUniversity/tristan-mp-v2.
-
-Preferred citation method:
-
-  https://ui.adsabs.harvard.edu/abs/2005AIPC..801..345S/abstract
