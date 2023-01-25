@@ -5,11 +5,11 @@ If you use `Tristan-MP v2` for work/research presented in a publication (whether
 You may also use the following `bibtex` entry:
 
 ```
-@software{hayk_hakobyan_2023_7566725,
+@software{tristan_v2,
   author       = {Hayk Hakobyan and
                   Anatoly Spitkovsky and
                   Alexander Chernoglazov and
-                  Sasha Philippov and
+                  Alexander Philippov and
                   Daniel Groselj and
                   Jens Mahlmann},
   title        = {PrincetonUniversity/tristan-mp-v2: v2.6},
