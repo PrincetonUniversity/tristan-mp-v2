@@ -22,9 +22,9 @@ contains
   !--- initialization -----------------------------------------!
   subroutine userReadInput()
     implicit none
-    call getInput('problem', 'wall_x', wall_x_location)
+    call getInput('problem', 'wall_x', wall_x_location, 5)
     call getInput('problem', 'gamma_launch', shift_gamma)
-    call getInput('problem', 'temperature', background_T)
+    !call getInput('problem', 'temperature', background_T)
   end subroutine userReadInput
 
   function userSpatialDistribution(x_glob, y_glob, z_glob, &
@@ -48,18 +48,24 @@ contains
 
   subroutine userInitParticles()
     implicit none
-    real :: background_n
+    real :: background_n, x_glob, y_glob
     type(region) :: back_region
     procedure(spatialDistribution), pointer :: spat_distr_ptr => null()
     spat_distr_ptr => userSpatialDistribution
 
-    background_n = REAL(ppc0) * 0.5
-    back_region % x_min = wall_x_location + 1.0
-    back_region % y_min = 0.0
-    back_region % x_max = REAL(global_mesh % sx)
-    back_region % y_max = REAL(global_mesh % sy)
-    call fillRegionWithThermalPlasma(back_region, (/1, 2/), 2, background_n, background_T, &
-                                     shift_gamma=shift_gamma, shift_dir=-1, zero_current=.true.)
+    x_glob = 2 * wall_x_location
+    y_glob = 0.5 * REAL(global_mesh % sy)
+
+    call injectParticleGlobally(1, x_glob, y_glob, 0.5, -shift_gamma, 0.0, 0.0)
+    call injectParticleGlobally(2, x_glob, y_glob, 0.5, shift_gamma, 0.0, 0.0)
+
+    !background_n = REAL(ppc0) * 0.5
+    !back_region % x_min = wall_x_location + 1.0
+    !back_region % y_min = 0.0
+    !back_region % x_max = REAL(global_mesh % sx)
+    !back_region % y_max = REAL(global_mesh % sy)
+    !call fillRegionWithThermalPlasma(back_region, (/1, 2/), 2, background_n, background_T, &
+    !shift_gamma=shift_gamma, shift_dir=-1, zero_current=.true.)
   end subroutine userInitParticles
 
   subroutine userInitFields()

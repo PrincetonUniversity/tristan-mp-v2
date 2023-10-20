@@ -1,0 +1,64 @@
+# Template for `Tristan v2` Makefile
+SHELL=/bin/sh
+
+# Files for conditional compilation
+USER_FILE = @USER_FILE@
+
+# General compiler specifications
+FC := @COMPILER_COMMAND@
+FFLAGS := @COMPILER_FLAGS@
+PFLAGS := @PREPROCESSOR_FLAGS@
+WARNFLAGS := @WARNING_FLAGS@
+
+#H5OBJ := $(HDF5_INCDIR)
+
+PFLAGS += @DEFS@
+# FFLAGS += $(WARNFLAGS)
+
+# Preliminary definitions
+EXE_FILE := @EXE_NAME@
+USR_DIR := @USER_DIR@
+SRC_DIR := src/
+BIN_DIR := bin/
+BUILD_DIR := build/
+
+EXECUTABLE := $(BIN_DIR)$(EXE_FILE)
+
+SRC_FILES := $(shell find $(SRC_DIR) -name '*.F90') $(addprefix $(USR_DIR), $(USER_FILE).F90)
+INC_FILES := $(shell find $(SRC_DIR) -name '*.F08') @ADD_INCLUDES@
+OBJ_FILES := $(patsubst %.F90,%.o,$(SRC_FILES))
+OBJ_FILES := $(addprefix $(BUILD_DIR),$(OBJ_FILES))
+
+ifeq (${VERBOSE}, y)
+	HIDE :=
+else
+	HIDE := @
+endif
+
+.PHONY: all depend clean
+
+all : depend $(EXECUTABLE)
+
+-include Makefile.depend
+
+depend Makefile.depend:
+	${HIDE}-./extern/makedepf90 $(SRC_FILES) $(PFLAGS) -B $(BUILD_DIR) > Makefile.depend
+
+$(EXECUTABLE): $(OBJ_FILES)
+	${HIDE}echo Linking $(EXECUTABLE)
+	${HIDE}mkdir -p $(@D)
+	${HIDE}$(FC) $(FFLAGS) $(PFLAGS) $(OBJ_FILES) -o $(EXECUTABLE)
+	${HIDE}echo [OK]: executable created at $(EXECUTABLE)
+
+
+$(BUILD_DIR)%.o: %.F90
+	${HIDE}mkdir -p $(@D)
+	${HIDE}$(FC) $(FFLAGS) $(PFLAGS) -cpp $(addprefix -I, $(dir $(INC_FILES))) @MODULE@ $(BUILD_DIR) -c $< -o $@
+	${HIDE}echo [OK]: compiled $<
+
+clean :
+	${HIDE}echo "Cleaning ..."
+	${HIDE}rm -f $(EXECUTABLE) $(OBJ_FILES)
+	${HIDE}rm -rf $(BIN_DIR) $(BUILD_DIR)
+	${HIDE}rm -f Makefile.depend
+

@@ -1,0 +1,92 @@
+#
+#  Tristan-mp input file
+#
+
+<node_configuration>
+
+  sizex         = 28            # number of cpus in x direction
+  sizey         = 1             # number of cpus in y direction
+  sizez         = 1             # number of cpus in z direction
+
+<time>
+
+  last          = 4000        # last timestep
+
+<grid>
+
+  mx0           = 4480           # number of actual grid points in the x direction
+  my0           = 10            # number of actual grid points in the y direction
+  mz0           = 1             # ... (ignored for 2D simulations)
+
+  boundary_x    = 1
+  boundary_y    = 1
+  boundary_z    = 1
+
+  resize_tiles  = 0
+  min_tile_nprt = 100
+
+  tileX         = 10
+  tileY         = 10
+  tileZ         = 1
+
+<algorithm>
+
+#  nfilter       = 2
+
+<restart>
+
+<output>
+
+  stride        = 1
+  interval      = 4
+  istep         = 1
+
+  history       = 0              # 0 = .false.; 1 = .true.
+  hst_interval  = 1
+
+  spec_min      = 1e-2           # `g - 1` for massive and `e` for massless
+  spec_max      = 1e2            # `g - 1` for massive and `e` for massless
+  spec_num      = 100            # number of energy bins
+
+<plasma>
+
+  ppc0          = 100
+  sigma         = 5
+  c_omp         = 10
+
+<particles>
+
+  nspec         = 2
+
+  maxptl1       = 1e7
+  m1            = 1
+  ch1           = -1
+  dwn1          = 0  
+
+  maxptl2       = 1e7
+  m2            = 1
+  ch2           = 1
+  dwn2          = 0  
+
+<problem>
+
+  upstream_T    = 1e-3           # temperature in terms of [m_e c**2]
+  nwaves        = 1
+  amplitude     = 0.5
+
+<downsampling>
+
+  # particle downsampling (merging) parameters
+  interval      = 5
+  start         = 1             # starting timestep
+  max_weight    = 1000000000    # maximum weight of merging particles
+
+  cartesian_bins = 1            # cartesian or spherical momentum binning
+  energy_min    = 0             # min energy of merged particle
+  energy_max    = 10000000000           # max energy of merged particle
+  int_weights   = 0             # force integer weights when merging
+
+  dynamic_bins  = 1             # take min/max energy locally in each tile...
+                                # (energ_max/min still set the global maxima)
+  mom_bins      = 5            # number of momentum bins in XYZ phase space
+  mom_spread    = 10000000000           # max momentum spread allowed for dynamic bins
