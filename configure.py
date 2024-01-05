@@ -267,7 +267,7 @@ if args["debug"] != "OFF":
     makefile_options[
         "WARNING_FLAGS"
     ] += "-Wall -Wextra -Wconversion -pedantic -Wno-compare-reals -Wno-unused-dummy-argument "
-    if int(args["d0ebug"]) >= 0:
+    if int(args["debug"]) >= 0:
         makefile_options["PREPROCESSOR_FLAGS"] += "-DDEBUG "
     if int(args["debug"]) >= 1:
         if args["flags"] == "intel":

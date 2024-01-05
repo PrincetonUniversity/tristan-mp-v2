@@ -37,22 +37,19 @@
         lam1 = (1.0 + lam) / (1.0 - lam)
         lam2 = 1.0 / (1.0 - lam)
         ex(i, j, k) = lam1 * ex(i, j, k) + lam2 * const * &
-                      (-bz(i, jm1, k) + bz(i, j, k)) - &
-                      2.0 * lam * lam2 * ex_target
+                      (-bz(i, jm1, k) + bz(i, j, k))
 
         lam = 0.5 * lambdaAbsorb(xg, yg + 0.5, zg)
         lam1 = (1.0 + lam) / (1.0 - lam)
         lam2 = 1.0 / (1.0 - lam)
         ey(i, j, k) = lam1 * ey(i, j, k) + lam2 * const * &
-                      (bz(im1, j, k) - bz(i, j, k)) - &
-                      2.0 * lam * lam2 * ey_target
+                      (bz(im1, j, k) - bz(i, j, k))
 
         lam = 0.5 * lambdaAbsorb(xg, yg, zg)
         lam1 = (1.0 + lam) / (1.0 - lam)
         lam2 = 1.0 / (1.0 - lam)
         ez(i, j, k) = lam1 * ez(i, j, k) + lam2 * const * &
-                      (bx(i, jm1, k) - bx(i, j, k) - by(im1, j, k) + by(i, j, k)) - &
-                      2.0 * lam * lam2 * ez_target
+                      (bx(i, jm1, k) - bx(i, j, k) - by(im1, j, k) + by(i, j, k))
       end do
     end do
 #elif defined(threeD)
