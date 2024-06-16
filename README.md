@@ -1,4 +1,4 @@
-# Tristan v2.7
+# Tristan v2.8
 
 [![DOI](https://zenodo.org/badge/234551890.svg)](https://zenodo.org/badge/latestdoi/234551890)
 
@@ -27,6 +27,8 @@ sudo apt libhdf5-openmpi-dev hdf5-tools
 
 ### Usage
 
+#### `configure.py` + GNU Make
+
 ```shell
 # to view all configuration options
 python3 configure.py --help
@@ -36,6 +38,15 @@ python3 configure.py -mpi08 -hdf5 --user=user_2d_rec -2d
 make all -j
 # run the code (on clusters need to do `srun`)
 mpirun -np <NCORES> ./bin/tristan-mp2d -input ../inputs/input.2d_rec
+```
+
+#### `CMake` (experimental support)
+
+```shell
+# preconfigure the code using
+cmake -B build -D user=<USERFILE> -D dim=3 ...
+# compile
+cmake --build build -j $(nproc)
 ```
 
 ### Docker
@@ -103,23 +114,25 @@ or in the VSCode environment (see the extension list in the `.vscode/settings.js
 
 ## Contributors (alphabetical order)
 
-* Fabio Bacchini (University of Colorado Boulder)
-* Alexander Chernoglazov (University of Maryland)
-* Daniel Groselj (Columbia)
-* Hayk Hakobyan (PPPL/Columbia)
-* Jens Mahlmann (Princeton)
-* Arno Vanthieghem (Princeton)
+* Fabio Bacchini (KU Leuven)
+* Alexander Chernoglazov (Univ. of Maryland)
+* Daniel Groselj (KU Leuven)
+* Hayk Hakobyan (Columbia/PPPL)
+* Jens Mahlmann (Columbia)
+* Arno Vanthieghem (Univ. of Paris)
 
 ## Board of trustees
 
 * Prof. Anatoly Spitkovsky (Princeton)
-* Prof. Sasha Philippov (University of Maryland)
+* Prof. Sasha Philippov (Univ. of Maryland)
 
 ## Publications
 
 __@TODO__
 
 ## Latest Releases
+* `v2.8` __Jun 2024__
+  * `CMake` support (experimental)
 * `v2.6.1` __Aug 2023__
   * Fixed a buggy ordering of synchrotron cooling term and particle coordinate update (very minor correction)
 * `v2.6` __Jan 2023__
