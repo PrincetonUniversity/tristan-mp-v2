@@ -17,7 +17,7 @@
 !CITATION
 !LICENSE
 .vscode/*.log
-CMakeLists.txt
+!CMakeLists.txt
 __pycache__
 
 *.pyc
