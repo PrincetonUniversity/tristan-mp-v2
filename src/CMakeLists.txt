@@ -1,0 +1,13 @@
+set(executable ${PROJECT_NAME}.xc)
+file(GLOB_RECURSE SOURCES *.F90)
+add_executable(${executable} ${SOURCES} ${userfile})
+target_include_directories(${executable} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/algorithms)
+target_include_directories(${executable} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/algorithms/fieldsolvers)
+target_include_directories(${executable} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/algorithms/gca)
+target_include_directories(${executable} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/algorithms/vay)
+target_include_directories(${executable} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/algorithms/boris)
+target_include_directories(${executable} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tools)
+
+if (${hdf5} STREQUAL "ON")
+  target_link_libraries(${executable} HDF5::HDF5)
+endif()
