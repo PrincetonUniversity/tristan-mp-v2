@@ -651,7 +651,7 @@ contains
     integer(kind=2), pointer, contiguous :: pt_xi(:), pt_yi(:), pt_zi(:)
     real, pointer, contiguous :: pt_u(:), pt_v(:), pt_w(:), pt_wei(:)
     integer(kind=2) :: pow, ds_, i, j, k, i1, i2, j1, j2, k1, k2
-    real :: contrib, comp = 0.0
+    real :: contrib, inv_gamma, comp = 0.0
 
     if (.not. present(ds)) then
       ds_ = 2_2
@@ -688,12 +688,13 @@ contains
             pt_w => species(s) % prtl_tile(ti, tj, tk) % w
             do p = 1, species(s) % prtl_tile(ti, tj, tk) % npart_sp
               ! compute 3-velocity
+              inv_gamma = 1.0 / sqrt(1.0 + pt_u(p)**2 + pt_v(p)**2 + pt_w(p)**2)
               if (component .eq. 0) then
-                comp = pt_u(p)
+                comp = pt_u(p) * inv_gamma
               else if (component .eq. 1) then
-                comp = pt_v(p)
+                comp = pt_v(p) * inv_gamma
               else if (component .eq. 2) then
-                comp = pt_w(p)
+                comp = pt_w(p) * inv_gamma
               end if
 
               i = pt_xi(p); j = pt_yi(p); k = pt_zi(p)
