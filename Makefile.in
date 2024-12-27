@@ -10,7 +10,7 @@ FFLAGS := @COMPILER_FLAGS@
 PFLAGS := @PREPROCESSOR_FLAGS@
 WARNFLAGS := @WARNING_FLAGS@
 
-#H5OBJ := $(HDF5_INCDIR)
+INC_DIRS := -I $(HDF5_ROOT)/include
 
 PFLAGS += @DEFS@
 # FFLAGS += $(WARNFLAGS)
@@ -53,7 +53,7 @@ $(EXECUTABLE): $(OBJ_FILES)
 
 $(BUILD_DIR)%.o: %.F90
 	${HIDE}mkdir -p $(@D)
-	${HIDE}$(FC) $(FFLAGS) $(PFLAGS) -cpp $(addprefix -I, $(dir $(INC_FILES))) @MODULE@ $(BUILD_DIR) -c $< -o $@
+	${HIDE}$(FC) $(FFLAGS) $(PFLAGS) -cpp $(addprefix -I, $(dir $(INC_FILES))) $(INC_DIRS) -J  $(BUILD_DIR) -c $< -o $@
 	${HIDE}echo [OK]: compiled $<
 
 clean :

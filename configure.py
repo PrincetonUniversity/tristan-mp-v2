@@ -1,5 +1,11 @@
-#! /usr/bin/env python
+#!/usr/bin/env python3
 # -----------------------------------------------------------------------------------------
+
+import sys
+
+if sys.version_info[0] < 3 or sys.version_info[1] < 8:
+    raise Exception("Must be using python 3.8+")
+
 import argparse
 import glob
 import re
@@ -21,7 +27,7 @@ unit_choices = [choice[len(unit_directory) : -4] for choice in unit_choices]
 flags_choices = ["intel", "generic"]
 
 rad_choices = ["no", "sync", "ic", "sync+ic"]
-clusters = ["frontera", "zaratan", "stellar", "ginsburg"]
+clusters = ["frontera", "zaratan", "stellar", "ginsburg", "rusty"]
 
 # system
 parser.add_argument(
@@ -39,16 +45,15 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--vector",
+    "--vectorization",
     default=None,
     required=False,
     choices=["avx2", "avx512"],
     help="choose the vectorization option.",
 )
 
-parser.add_argument(
-    "-hdf5", action="store_true", default=False, help="enable HDF5 & use h5pfc compiler"
-)
+parser.add_argument("-nohdf5", action="store_true", default=False, help="disable HDF5")
+
 parser.add_argument(
     "-serial", action="store_true", default=False, help="enable serial output"
 )
@@ -58,14 +63,6 @@ parser.add_argument(
     default=False,
     help="enable non-blocking mpi calls (faster simulation but non-reproducible)",
 )
-
-# vec_group = parser.add_mutually_exclusive_group(required=False)
-# vec_group.add_argument(
-#     "-avx2", action="store_true", default=False, help="enable avx2 vectorization"
-# )
-# vec_group.add_argument(
-#     "-avx512", action="store_true", default=False, help="enable avx512 vectorization"
-# )
 
 parser.add_argument(
     "-lowmem", action="store_true", default=False, help="enable low memory regime"
@@ -213,39 +210,43 @@ makefile_options["COMPILER_COMMAND"] = ""
 makefile_options["COMPILER_FLAGS"] = ""
 makefile_options["PREPROCESSOR_FLAGS"] = ""
 makefile_options["WARNING_FLAGS"] = ""
-makefile_options[
-    "DEFS"
-] = "-DSTR_MAX=280 -DTINYXYZ=1e-6 -DTINYREAL=1e-3 -DTINYFLD=1e-8 -DTINYWEI=1e-6 -DM_PI=3.141592653589793 -DVEC_LEN=16 "
+makefile_options["DEFS"] = (
+    "-DSTR_MAX=280 -DTINYXYZ=1e-6 -DTINYREAL=1e-3 -DTINYFLD=1e-8 -DTINYWEI=1e-6 -DM_PI=3.141592653589793 -DVEC_LEN=16 "
+)
 makefile_options["ADD_INCLUDES"] = ""
 
 # specific cluster:
 specific_cluster = False
+clustername = ""
 if args["cluster"] is not None:
     specific_cluster = True
     clustername = args["cluster"].capitalize()
     args["ifport"] = True
     if args["cluster"] == "frontera":
         args["flags"] = "intel"
-        args["vector"] = "avx512"
+        args["vectorization"] = "avx512"
         args["lowmem"] = True
     elif args["cluster"] == "stellar":
         args["flags"] = "intel"
-        args["vector"] = "avx512"
+        args["vectorization"] = "avx512"
     elif args["cluster"] == "zaratan":
         args["flags"] = "generic"
-        args["vector"] = "avx2"
+        args["vectorization"] = "avx2"
         makefile_options["ADD_INCLUDES"] = "$(HDF5_INCDIR)"
     elif args["cluster"] == "ginsburg":
         args["flags"] = "intel"
-        args["vector"] = "avx512"
+        args["vectorization"] = "avx512"
+    elif args["cluster"] == "rusty":
+        args["flags"] = "intel"
+        args["vectorization"] = "avx512"
 
 # compilation command
-if args["hdf5"]:
+if not args["nohdf5"]:
     makefile_options["COMPILER_COMMAND"] += "h5pfc "
     makefile_options["PREPROCESSOR_FLAGS"] += "-DHDF5 "
 else:
     makefile_options["COMPILER_COMMAND"] += (
-        "mpif90 " if not args["compiler"] == "intel" else "mpiifort "
+        "mpif90 " if not args["flags"] == "intel" else "mpiifort "
     )
 if args["ifport"]:
     makefile_options["PREPROCESSOR_FLAGS"] += "-DIFPORT "
@@ -277,13 +278,13 @@ if args["debug"] != "OFF":
                 "COMPILER_FLAGS"
             ] += "-fbacktrace -ffpe-trap=invalid,zero,overflow,underflow,denormal "
         # @TODO: add aocc
-    if int(args["debug"]) >= 2 and (args["compiler"] == "intel"):
+    if int(args["debug"]) >= 2 and (args["flags"] == "intel"):
         makefile_options["COMPILER_FLAGS"] += "-check all -check noarg_temp_created "
 else:
     makefile_options["COMPILER_FLAGS"] += "-Ofast "
 
 if args["double"]:
-    if args["compiler"] == "intel":
+    if args["flags"] == "intel":
         makefile_options["COMPILER_FLAGS"] += "-r8 "
     else:
         makefile_options["COMPILER_FLAGS"] += "-fdefault-real-8 "
@@ -306,17 +307,17 @@ if args["flags"] == "intel":
     ] += (
         "-diag-disable 10397 -diag-disable 10346 -diag-disable 8100 -diag-disable 6178 "
     )
-    if args["vector"] is not None:
-        if args["vector"] == "avx2":
+    if args["vectorization"] is not None:
+        if args["vectorization"] == "avx2":
             makefile_options["COMPILER_FLAGS"] += "-xCORE-AVX2 "
-        elif args["vector"] == "avx512":
+        elif args["vectorization"] == "avx512":
             makefile_options["COMPILER_FLAGS"] += "-xCORE-AVX512 -qopt-zmm-usage:high "
-        elif args["vector"] == "amd-avx2":
+        elif args["vectorization"] == "amd-avx2":
             makefile_options["COMPILER_FLAGS"] += "-mavx2 "
 else:
     makefile_options["MODULE"] = "-J "
     makefile_options["COMPILER_FLAGS"] += "-O3 -DSoA -ffree-line-length-512 "
-    if args["vector"] is not None:
+    if args["vectorization"] is not None:
         makefile_options["COMPILER_FLAGS"] += "-mavx "
 
 if args["1d"]:
@@ -436,7 +437,7 @@ print("  Pair annihilation:       " + ("ON" if args["annihilation"] else "OFF"))
 
 print("TECHNICAL ....................................................................")
 
-print("  Flag types [vec.]:       " + f'{args["flags"]} [{args["vector"]}]')
+print("  Flag types [vec.]:       " + f'{args["flags"]} [{args["vectorization"]}]')
 print("  Precision:               " + ("double" if args["double"] else "single"))
 print(
     "  Debug mode:              "
@@ -448,7 +449,7 @@ print(
     "  Output:                  "
     + (
         ("HDF5" + (" (serial)" if args["serial"] else " (parallel)"))
-        if args["hdf5"]
+        if not args["nohdf5"]
         else "N/A"
     )
 )

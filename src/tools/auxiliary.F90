@@ -1,12 +1,4 @@
 module m_aux
-#ifdef MPI08
-  use mpi_f08
-#else
-  include "mpif.h"
-#endif
-#ifdef HDF5
-  use hdf5
-#endif
   use m_globalnamespace
   implicit none
   real(dprec) :: dseed

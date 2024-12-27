@@ -52,6 +52,10 @@ contains
     psr_omega = 2.0 * M_PI / psr_period
     call getInput('problem', 'psr_bstar', psr_bstar)
     call getInput('problem', 'prtl_kick', prtl_kick, 0.0)
+    if (prtl_kick .lt. 1.0) then
+      ! interpreting as beta * gamma 
+      prtl_kick = sqrt(1.0 + prtl_kick**2)
+    end if
 
     call getInput('problem', 'inj_mult', inj_mult, 1.0)
     call getInput('problem', 'sigGJ_limiter', sigGJ_limiter, 1000.0)

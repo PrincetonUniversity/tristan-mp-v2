@@ -22,7 +22,7 @@ endif()
 
 message(NOTICE "Compiler: ${CMAKE_Fortran_COMPILER}")
 
-project(tristan-v2 VERSION 2.8
+project(tristan-v2 VERSION 2.9
         DESCRIPTION "Relativistic cartesian particle-in-cell code"
         LANGUAGES Fortran)
 
@@ -178,9 +178,11 @@ add_compile_definitions(NGHOST=${nghosts})
 
 if (${radiation} MATCHES "sync")
   add_compile_definitions(SYNCHROTRON)
+  add_compile_definitions(RADIATION)
 endif()
 if (${radiation} MATCHES "ic")
   add_compile_definitions(INVERSECOMPTON)
+  add_compile_definitions(RADIATION)
 endif()
 
 # select the dimension

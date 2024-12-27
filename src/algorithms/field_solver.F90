@@ -121,7 +121,7 @@ contains
     else
       ! simple cartesian open boundaries
 #if defined(oneD) || defined (twoD) || defined (threeD)
-      if (absorb_x .eq. 1) then
+      if ((absorb_x .eq. 1) .and. (boundary_x .ne. 1)) then
         ! open boundaries in x direction
         if (x0 .lt. ds_abs) then
           lambdaAbsorb = -K_abs * ((ds_abs - x0) / ds_abs)**3
@@ -131,7 +131,7 @@ contains
       end if
 #endif
 #if defined(twoD) || defined (threeD)
-      if (absorb_y .eq. 1) then
+      if ((absorb_y .eq. 1) .and. (boundary_y .ne. 1)) then
         ! open boundaries in y direction
         if (y0 .lt. ds_abs) then
           lambdaAbsorb = -K_abs * ((ds_abs - y0) / ds_abs)**3
@@ -141,7 +141,7 @@ contains
       end if
 #endif
 #if defined(threeD)
-      if (absorb_z .eq. 0) then
+      if ((absorb_z .eq. 1) .and. (boundary_z .ne. 1))then
         ! open boundaries in z direction
         if (z0 .lt. ds_abs) then
           lambdaAbsorb = -K_abs * ((ds_abs - z0) / ds_abs)**3

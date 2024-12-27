@@ -1,4 +1,4 @@
-# Tristan v2.8
+# Tristan v2.9
 
 [![DOI](https://zenodo.org/badge/234551890.svg)](https://zenodo.org/badge/latestdoi/234551890)
 
@@ -8,38 +8,47 @@ For detailed tutorials and code description please visit our [wiki](https://prin
 
 ### Prerequisites
 
-* MPI (either OpenMPI or Intel-MPI)
+* MPI (either OpenMPI or Intel-MPI; mpich is currently untested)
 * GCC or Intel Fortran compiler
 * (optional) Parallel HDF5 (compiled with either OpenMPI or Intel-MPI)
 
 On clusters typically all you need to do is to load the specific modules see [here](https://princetonuniversity.github.io/tristan-v2/tristanv2-configure.html#cluster-specific-customization). 
 
-If you are, however, running on a local machine make sure to install the following prerequisites (assuming non-Intel compiler and `apt` package manager):
+If you are, however, running on a local machine make sure to install the following prerequisites (assuming non-Intel compiler):
 
+#### `apt` (Debian-like)
 ```sh
 # gcc + openmpi
-sudo apt install build-essential libopenmpi-dev
+sudo apt install build-essential libopenmpi-dev 
 # hdf5
 sudo apt libhdf5-openmpi-dev hdf5-tools
 ```
 
-> Also make sure you have a working `python3` installation to be able to configure the code.
+#### `pacman` (Arch-like)
+```sh
+# gcc + openmpi
+sudo pacman -S base-devel gcc gcc-fortran openmpi 
+# hdf5
+sudo pacman -S hdf5-openmpi
+```
+
+> Also make sure you have a working `python3` (v3.8+) installation to be able to configure the code or `Cmake`.
 
 ### Usage
 
-#### `configure.py` + GNU Make
+#### Compiling with `configure.py` + GNU Make
 
 ```shell
 # to view all configuration options
-python3 configure.py --help
+python3 configure.py -h
 # to configure the code (example)
-python3 configure.py -mpi08 -hdf5 --user=user_2d_rec -2d
+python3 configure.py -mpi08 --user=user_2d_rec -2d
 # compile and link (-j compiles in parallel which is much faster)
-make all -j
+make -j
 # executable will be in the `bin/` directory
 ```
 
-#### Cmake
+#### Compiling with `cmake`
 
 Since `v2.8` we also support `cmake` for the code configuration. 
 
@@ -51,20 +60,11 @@ cmake --build build -j
 # executable will be in the `build/src/` directory (*.xc extension)
 ```
 
-Running:
+#### Running:
 
 ```sh
 # run the code (on clusters need to do `srun`, or `irun` etc. depending on the cluster)
 mpirun -np <NCORES> ./<EXECUTABLE> -input <INPUTFILE> -output <OUTPUTDIR>
-```
-
-#### `CMake` (experimental support)
-
-```shell
-# preconfigure the code using
-cmake -B build -D user=<USERFILE> -D dim=3 ...
-# compile
-cmake --build build -j $(nproc)
 ```
 
 ### Docker
@@ -116,17 +116,17 @@ Since `v2.4` code formatting policy is employed. To follow the proper formatting
 
 ```sh
 # create a local pip environment
-python3 -m virtualenv venv
+python3 -m venv .venv
 # activate it
-source venv/bin/activate
+source .venv/bin/activate
 # install required modules
-pip install -r dev-requirements.txt
+pip install fprettify
 ```
 
 After that one can either use the tool in a stand-alone manner:
 
 ```sh
-./venv/bin/fprettify -i 2 -w 4 --whitespace-assignment true --enable-decl --whitespace-decl true --whitespace-relational true --whitespace-logical true --whitespace-plusminus true --whitespace-multdiv true --whitespace-print true --whitespace-type true --whitespace-intrinsics true --enable-replacements -l 1000 [FILENAME.F90]
+.venv/bin/fprettify -i 2 -w 4 --whitespace-assignment true --enable-decl --whitespace-decl true --whitespace-relational true --whitespace-logical true --whitespace-plusminus true --whitespace-multdiv true --whitespace-print true --whitespace-type true --whitespace-intrinsics true --enable-replacements -l 1000 [FILENAME.F90]
 ```
 or in the VSCode environment (see the extension list in the `.vscode/settings.json` of the current repo).
 
@@ -151,6 +151,10 @@ or in the VSCode environment (see the extension list in the `.vscode/settings.js
 __@TODO__
 
 ## Latest Releases
+* `v2.9` __Dec 2024__
+  * removed `tristanVis` (see [`graph-et`](https://pypi.org/project/graph-et/))
+  * cleanups & updated instructions
+  * minor bugfixes
 * `v2.8` __Apr 2024__
   * cmake support
   * minor reformatting + bugfixes
@@ -225,11 +229,3 @@ __@TODO__
   * Slice outputs for 3d added
   * Particle momentum binning improved for downsampling
   * Minor bugs fixed
-
----
-
-We employ [semantic versioning](https://semver.org/) for this code. Given a version number `v<MAJOR>.<MINOR>.<PATCH>r<CANDIDATE>`, increment the:
-- `MAJOR` version when you make incompatible changes,
-- `MINOR` version when you add functionality in a backwards compatible manner, and
-- `PATCH` version when you make backwards compatible bug fixes.
-- `CANDIDATE`: release candidate for "nightly" builds
