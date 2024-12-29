@@ -1,6 +1,6 @@
-If you use `Tristan-MP v2` for work/research presented in a publication (whether directly, or as a dependency to another package), we recommend and encourage the following acknowledgment:
+If you use `Tristan v2` for work/research presented in a publication (whether directly, or as a dependency to another package), we recommend and encourage the following acknowledgment:
 
-  This research made use of "Tristan-MP v2" particle-in-cell code.
+  This research made use of "Tristan v2" particle-in-cell code.
 
 You may also use the following `bibtex` entry:
 
@@ -11,14 +11,23 @@ You may also use the following `bibtex` entry:
                   Alexander Chernoglazov and
                   Alexander Philippov and
                   Daniel Groselj and
-                  Jens Mahlmann},
-  title        = {PrincetonUniversity/tristan-mp-v2: v2.6},
-  month        = jan,
-  year         = 2023,
+                  Jens Mahlmann and
+                  Fabio Bacchini and
+                  Arno Vanthieghem},
+  title        = {PrincetonUniversity/tristan-mp-v2: v2.9},
+  month        = dec,
+  year         = 2024,
   publisher    = {Zenodo},
-  version      = {v2.6},
-  doi          = {10.5281/zenodo.7566725},
-  url          = {https://doi.org/10.5281/zenodo.7566725}
+  version      = {v2.9},
+  doi          = {10.5281/zenodo.14564000},
+  url          = {https://doi.org/10.5281/zenodo.14564000},
+  swhid        = {swh:1:dir:20798c1a67f0f7c6b85b2cb20cfac127bef83439
+                   ;origin=https://doi.org/10.5281/zenodo.7566724;vis
+                   it=swh:1:snp:10419ef8096cc0f9f9977c1660c5abd64f8ba
+                   2c4;anchor=swh:1:rel:2bf66a253a6dfc77c989e60734d1c
+                   638109d3893;path=PrincetonUniversity-tristan-
+                   mp-v2-e0d1cfb
+                  },
 }
 ```
 
