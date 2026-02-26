@@ -59,6 +59,8 @@ contains
       call getInput('particles', var_name, species(s) % flds_at_prtl_sp, .false.)
       write (var_name, "(A12,I1)") "dens_at_prtl", s
       call getInput('particles', var_name, species(s) % dens_at_prtl_sp, .false.)
+      write (var_name, "(A12,I1)") "curr_at_prtl", s
+      call getInput('particles', var_name, species(s) % curr_at_prtl_sp, .false.)
 
       if ((species(s) % m_sp .eq. 0) .and. (species(s) % ch_sp .ne. 0)) then
         call throwError('ERROR: massless charged particles are not allowed')
