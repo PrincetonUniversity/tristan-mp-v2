@@ -259,6 +259,33 @@ contains
                                    species(s) % prtl_tile(ti, tj, tk) % zi(temp), &
                                    bx, by, bz, temp_real1, temp_real2, temp_real3, comp=3)
               temp_real_arr(j) = temp_real3 * B_norm
+            case ('jx')
+              call interpFromEdges(species(s) % prtl_tile(ti, tj, tk) % dx(temp), &
+                                   species(s) % prtl_tile(ti, tj, tk) % dy(temp), &
+                                   species(s) % prtl_tile(ti, tj, tk) % dz(temp), &
+                                   species(s) % prtl_tile(ti, tj, tk) % xi(temp), &
+                                   species(s) % prtl_tile(ti, tj, tk) % yi(temp), &
+                                   species(s) % prtl_tile(ti, tj, tk) % zi(temp), &
+                                   jx, jy, jz, temp_real1, temp_real2, temp_real3, comp=1)
+              temp_real_arr(j) = -temp_real1 * B_norm
+            case ('jy')
+              call interpFromEdges(species(s) % prtl_tile(ti, tj, tk) % dx(temp), &
+                                   species(s) % prtl_tile(ti, tj, tk) % dy(temp), &
+                                   species(s) % prtl_tile(ti, tj, tk) % dz(temp), &
+                                   species(s) % prtl_tile(ti, tj, tk) % xi(temp), &
+                                   species(s) % prtl_tile(ti, tj, tk) % yi(temp), &
+                                   species(s) % prtl_tile(ti, tj, tk) % zi(temp), &
+                                   jx, jy, jz, temp_real1, temp_real2, temp_real3, comp=2)
+              temp_real_arr(j) = -temp_real2 * B_norm
+            case ('jz')
+              call interpFromEdges(species(s) % prtl_tile(ti, tj, tk) % dx(temp), &
+                                   species(s) % prtl_tile(ti, tj, tk) % dy(temp), &
+                                   species(s) % prtl_tile(ti, tj, tk) % dz(temp), &
+                                   species(s) % prtl_tile(ti, tj, tk) % xi(temp), &
+                                   species(s) % prtl_tile(ti, tj, tk) % yi(temp), &
+                                   species(s) % prtl_tile(ti, tj, tk) % zi(temp), &
+                                   jx, jy, jz, temp_real1, temp_real2, temp_real3, comp=3)
+              temp_real_arr(j) = -temp_real3 * B_norm
             case default
               if (species(s) % prtl_vars_sp(p) (1:4) .eq. 'dens') then
                 temp_real_arr(j) = lg_arr(species(s) % prtl_tile(ti, tj, tk) % xi(temp), &
