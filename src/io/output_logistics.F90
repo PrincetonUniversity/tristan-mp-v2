@@ -196,6 +196,15 @@ contains
         end do
         species(s) % n_prtl_vars_sp = species(s) % n_prtl_vars_sp + nspec
       end if
+      if (species(s) % curr_at_prtl_sp) then
+        species(s) % prtl_vars_sp(species(s) % n_prtl_vars_sp + 1: &
+                              species(s) % n_prtl_vars_sp + 3) = &
+                              (/'jx   ', 'jy   ', 'jz   '/)
+        species(s) % prtl_var_types_sp(species(s) % n_prtl_vars_sp + 1: &
+                              species(s) % n_prtl_vars_sp + 3) = &
+                              (/'real ', 'real ', 'real '/)
+        species(s) % n_prtl_vars_sp = species(s) % n_prtl_vars_sp + 3
+      end if
 #ifdef PRTLPAYLOADS
       do pid = 1, 3
         species(s) % prtl_vars_sp(species(s) % n_prtl_vars_sp + pid) = 'pld'//STR(pid)
