@@ -41,6 +41,7 @@ module m_particles
     logical :: output_sp_prtl
     logical :: flds_at_prtl_sp
     logical :: dens_at_prtl_sp
+    logical :: curr_at_prtl_sp
     integer :: n_prtl_vars_sp, n_dom_vars_sp
     character(len=STR_MAX) :: prtl_vars_sp(64), prtl_var_types_sp(64)
 
